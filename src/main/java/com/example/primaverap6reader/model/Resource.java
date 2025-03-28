@@ -26,6 +26,12 @@ public class Resource {
     @JsonProperty("PhoneNumber")
     private String phoneNumber;
 
+    @JsonProperty("OfficePhone")
+    private String officePhone;
+
+    @JsonProperty("OtherPhone")
+    private String otherPhone;
+
     @JsonProperty("PricePerUnit")
     private Double pricePerUnit;
 
@@ -37,4 +43,22 @@ public class Resource {
 
     @JsonProperty("Status")
     private String status;
+
+    @JsonProperty("IsActive")
+    private Boolean isActive;
+
+    @JsonProperty("CalendarName")
+    private String calendarName;
+
+    @JsonProperty("Title")
+    private String title;
+
+    @JsonProperty("ResourceNotes")
+    private String resourceNotes;
+
+    @JsonProperty("PrimaryRoleName")
+    private String primaryRoleName;
+
+    @JsonProperty("UnitOfMeasureName")
+    private String unitOfMeasureName;
 }

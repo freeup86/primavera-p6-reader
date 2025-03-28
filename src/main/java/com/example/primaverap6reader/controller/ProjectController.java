@@ -217,10 +217,12 @@ public class ProjectController {
 
             // Get resource assignments for the activity
             List<ResourceAssignment> resourceAssignments = primaveraService.getResourceAssignmentsForActivity(activityId);
+            // Even if the list is empty, it won't cause errors
 
             model.addAttribute("project", project);
             model.addAttribute("activity", activity);
             model.addAttribute("resourceAssignments", resourceAssignments);
+            model.addAttribute("hasResourceAssignments", !resourceAssignments.isEmpty());
 
             return "activity-details";
         } catch (Exception e) {

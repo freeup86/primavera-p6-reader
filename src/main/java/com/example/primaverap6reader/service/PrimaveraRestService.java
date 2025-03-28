@@ -10,15 +10,14 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -326,20 +325,49 @@ public class PrimaveraRestService {
             }
         }
 
-        String url = baseUrl + "/project/" + projectId;
-
-        HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
-
-        log.info("Fetching project with ID: {}", projectId);
-
         try {
+            String url = baseUrl + "/project/" + projectId;
+            HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
+            log.info("Fetching project with ID: {}", projectId);
+
             ResponseEntity<Project> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, Project.class);
 
             log.info("Successfully retrieved project: {}", response.getBody().getName());
             return response.getBody();
+        } catch (HttpClientErrorException.NotFound e) {
+            // Project not found by direct ID lookup, try finding it in all projects list
+            log.warn("Project with ID {} not found via direct lookup, trying alternative approach", projectId);
+            try {
+                // Attempt to find in all projects list
+                List<Project> allProjects = getAllProjects();
+                Optional<Project> foundProject = allProjects.stream()
+                        .filter(p -> projectId.equals(p.getId()) || projectId.equals(p.getObjectId()))
+                        .findFirst();
+
+                if (foundProject.isPresent()) {
+                    log.info("Found project {} using alternative lookup", foundProject.get().getName());
+                    return foundProject.get();
+                } else {
+                    log.error("Project with ID {} not found in all projects list", projectId);
+                    throw new RuntimeException("Project not found: " + projectId);
+                }
+            } catch (Exception fallbackError) {
+                log.error("Error in fallback project lookup: {}", fallbackError.getMessage(), fallbackError);
+                throw new RuntimeException("Unable to find project: " + projectId, fallbackError);
+            }
         } catch (Exception e) {
             log.error("Error fetching project with ID {}: {}", projectId, e.getMessage(), e);
+
+            // Check if it might be a session issue and attempt re-login
+            if (e.getMessage().contains("403") || e.getMessage().contains("401")) {
+                log.info("Possible session expiration, attempting re-login");
+                if (forceLogin()) {
+                    // Retry after login
+                    return getProjectById(projectId);
+                }
+            }
+
             throw e;
         }
     }
@@ -556,48 +584,13 @@ public class PrimaveraRestService {
             "projectActivities",
             "projectActivitiesPage",
             "filteredActivities",
-            "activityCount"
+            "activityCount",
+            "activityResourceAssignments",
+            "projectResourceAssignments",
+            "allResources"
     }, allEntries = true)
     public void refreshCache() {
         log.info("Refreshing all caches");
-    }
-
-    /**
-     * Get all resources
-     * @return List of resources
-     */
-    @Cacheable(value = "allResources")
-    public List<Resource> getAllResources() {
-        // Check if logged in
-        if (cookies == null) {
-            log.info("No session cookies, attempting to login first");
-            if (!login()) {
-                log.error("Login failed, cannot proceed with fetching resources");
-                throw new RuntimeException("Unable to login to Primavera P6");
-            }
-        }
-
-        String url = baseUrl + "/resource?Fields=ObjectId,Id,Name,ResourceType,EmailAddress,PhoneNumber,PricePerUnit,MaxUnitsPerTime,CalculateCostFromUnits,Status";
-
-        HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
-
-        log.info("Fetching all resources from: {}", url);
-
-        try {
-            ResponseEntity<Resource[]> response = restTemplate.exchange(
-                    url, HttpMethod.GET, entity, Resource[].class);
-
-            if (response.getBody() != null) {
-                log.info("Successfully retrieved {} resources", response.getBody().length);
-                return Arrays.asList(response.getBody());
-            } else {
-                log.warn("No resources found or null response body");
-                return Collections.emptyList();
-            }
-        } catch (Exception e) {
-            log.error("Error fetching resources: {}", e.getMessage(), e);
-            throw e;
-        }
     }
 
     /**
@@ -616,14 +609,15 @@ public class PrimaveraRestService {
             }
         }
 
-        String url = baseUrl + "/resourceassignment?Fields=ObjectId,ActivityId,ActivityObjectId,ResourceId,ResourceObjectId,ResourceName,PlannedUnits,ActualUnits,RemainingUnits,PlannedCost,ActualCost,RemainingCost,PlannedStartDate,PlannedFinishDate,ActualStartDate,ActualFinishDate" +
-                "&Filter=ActivityObjectId = " + activityObjectId;
-
-        HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
-
-        log.info("Fetching resource assignments for activity: {}", activityObjectId);
-
         try {
+            // Use the correct capitalization in the URL path
+            String url = baseUrl + "/resourceAssignment?Fields=ObjectId,ActivityId,ActivityObjectId,ResourceId,ResourceObjectId,ResourceName,PlannedUnits,ActualUnits,RemainingUnits,PlannedCost,ActualCost,RemainingCost,PlannedStartDate,PlannedFinishDate,ActualStartDate,ActualFinishDate" +
+                    "&Filter=ActivityObjectId = " + activityObjectId;
+
+            HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
+
+            log.info("Fetching resource assignments for activity: {}", activityObjectId);
+
             ResponseEntity<ResourceAssignment[]> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, ResourceAssignment[].class);
 
@@ -634,9 +628,34 @@ public class PrimaveraRestService {
                 log.warn("No resource assignments found or null response body");
                 return Collections.emptyList();
             }
+        } catch (HttpClientErrorException.NotFound e) {
+            // 404 might indicate no resource assignments exist
+            log.warn("No resource assignments found for activity {} (404 response)", activityObjectId);
+            return Collections.emptyList();
         } catch (Exception e) {
             log.error("Error fetching resource assignments: {}", e.getMessage(), e);
-            throw e;
+
+            // Try with a different filter format if it's a possible syntax issue
+            try {
+                log.info("Attempting alternative filter format for resource assignments");
+                // Note the capital 'A' in the URL
+                String altUrl = baseUrl + "/resourceAssignment?Fields=ObjectId,ActivityId,ActivityObjectId,ResourceId,ResourceObjectId,ResourceName,PlannedUnits,ActualUnits,RemainingUnits,PlannedCost,ActualCost,RemainingCost,PlannedStartDate,PlannedFinishDate,ActualStartDate,ActualFinishDate" +
+                        "&Filter=ActivityObjectId IN (" + activityObjectId + ")";
+
+                HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
+                ResponseEntity<ResourceAssignment[]> response = restTemplate.exchange(
+                        altUrl, HttpMethod.GET, entity, ResourceAssignment[].class);
+
+                if (response.getBody() != null) {
+                    log.info("Successfully retrieved {} resource assignments using alternative filter", response.getBody().length);
+                    return Arrays.asList(response.getBody());
+                }
+            } catch (Exception altError) {
+                log.error("Alternative filter approach also failed: {}", altError.getMessage());
+            }
+
+            // Return empty list instead of throwing exception
+            return Collections.emptyList();
         }
     }
 
@@ -673,7 +692,8 @@ public class PrimaveraRestService {
         }
         filter.append(")");
 
-        String url = baseUrl + "/resourceassignment?Fields=ObjectId,ActivityId,ActivityObjectId,ResourceId,ResourceObjectId,ResourceName,PlannedUnits,ActualUnits,RemainingUnits,PlannedCost,ActualCost,RemainingCost,PlannedStartDate,PlannedFinishDate,ActualStartDate,ActualFinishDate" +
+        // Note the capital 'A' in resourceAssignment
+        String url = baseUrl + "/resourceAssignment?Fields=ObjectId,ActivityId,ActivityObjectId,ResourceId,ResourceObjectId,ResourceName,PlannedUnits,ActualUnits,RemainingUnits,PlannedCost,ActualCost,RemainingCost,PlannedStartDate,PlannedFinishDate,ActualStartDate,ActualFinishDate" +
                 "&Filter=" + filter.toString();
 
         HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
@@ -693,6 +713,142 @@ public class PrimaveraRestService {
             }
         } catch (Exception e) {
             log.error("Error fetching resource assignments: {}", e.getMessage(), e);
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Diagnostics for P6API
+     */
+    @GetMapping("/api/diagnostic/p6api")
+    public ResponseEntity<String> diagnosticP6Api() {
+        try {
+            // Test the base API endpoints
+            StringBuilder result = new StringBuilder();
+            result.append("P6 API Diagnostic Report\n\n");
+
+            // Add some header info about the connection
+            result.append("Base URL: ").append(baseUrl).append("\n");
+            result.append("Login successful: ").append(cookies != null).append("\n\n");
+
+            // List available endpoints
+            String[] endpoints = {
+                    "/project",
+                    "/activity",
+                    "/resourceassignment",
+                    "/resource"
+            };
+
+            for (String endpoint : endpoints) {
+                try {
+                    String url = baseUrl + endpoint + "?Limit=1"; // Just get one record
+
+                    HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
+                    ResponseEntity<String> response = restTemplate.exchange(
+                            url, HttpMethod.GET, entity, String.class);
+
+                    result.append("Endpoint: ").append(endpoint)
+                            .append(" - Status: ").append(response.getStatusCode())
+                            .append(" - Sample: ").append(response.getBody().substring(0,
+                                    Math.min(response.getBody().length(), 100)))
+                            .append("...\n");
+                } catch (Exception e) {
+                    result.append("Endpoint: ").append(endpoint)
+                            .append(" - Error: ").append(e.getMessage())
+                            .append("\n");
+                }
+            }
+
+            return ResponseEntity.ok(result.toString());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Diagnostic failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Check for P6 API endpoints
+     */
+    @GetMapping("/api/diagnostic/p6-endpoints")
+    public ResponseEntity<String> checkP6Endpoints() {
+        try {
+            // First ensure we're logged in
+            if (cookies == null) {
+                login();
+            }
+
+            StringBuilder results = new StringBuilder();
+            results.append("Primavera P6 REST API Endpoint Check\n\n");
+
+            // List of potential endpoints to check
+            String[] endpointsToCheck = {
+                    "/project",
+                    "/activity",
+                    "/resource",
+                    "/resourceassignment",
+                    "/assignment", // Some versions might use this instead
+                    "/resources", // Check plural versions too
+                    "/assignments"
+            };
+
+            for (String endpoint : endpointsToCheck) {
+                try {
+                    String url = baseUrl + endpoint;
+                    HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
+
+                    // Just do a HEAD request to check if endpoint exists
+                    ResponseEntity<Void> response = restTemplate.exchange(
+                            url, HttpMethod.HEAD, entity, Void.class);
+
+                    results.append("✅ ").append(endpoint).append(": ")
+                            .append(response.getStatusCode()).append("\n");
+                } catch (Exception e) {
+                    results.append("❌ ").append(endpoint).append(": ")
+                            .append(e.getMessage()).append("\n");
+                }
+            }
+
+            return ResponseEntity.ok(results.toString());
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Diagnostic failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Get all resources
+     * @return List of Resource objects
+     */
+    @Cacheable(value = "allResources")
+    public List<Resource> getAllResources() {
+        // Check if logged in
+        if (cookies == null) {
+            log.info("No session cookies, attempting to login first");
+            if (!login()) {
+                log.error("Login failed, cannot proceed with fetching resources");
+                throw new RuntimeException("Unable to login to Primavera P6");
+            }
+        }
+
+        String url = baseUrl + "/resource?Fields=ObjectId,Id,Name,ResourceType,EmailAddress,OfficePhone,OtherPhone,PricePerUnit,MaxUnitsPerTime,CalculateCostFromUnits,IsActive,CalendarName,Title,ResourceNotes";
+
+        HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
+
+        log.info("Fetching all resources from: {}", url);
+
+        try {
+            ResponseEntity<Resource[]> response = restTemplate.exchange(
+                    url, HttpMethod.GET, entity, Resource[].class);
+
+            if (response.getBody() != null) {
+                log.info("Successfully retrieved {} resources", response.getBody().length);
+                return Arrays.asList(response.getBody());
+            } else {
+                log.warn("No resources found or null response body");
+                return Collections.emptyList();
+            }
+        } catch (Exception e) {
+            log.error("Error fetching resources: {}", e.getMessage(), e);
             throw e;
         }
     }

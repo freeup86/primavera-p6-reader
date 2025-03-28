@@ -45,7 +45,11 @@ public class CacheConfig {
                 "projectTimelineStats",
                 "topProjectsStats",
                 "projectDurationStats",
-                "projectSummaryStats"
+                "projectSummaryStats",
+                // Add missing caches
+                "allResources",
+                "activityResourceAssignments",
+                "projectResourceAssignments"
         ));
 
         return cacheManager;

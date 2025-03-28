@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:text="${resource.name} + ' - Primavera P6'"></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a href="/resources" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Resources
+            </a>
+        </div>
+        <div>
+            <form method="post" action="/projects/cache/refresh" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h1 th:text="${resource.name}"></h1>
+
+    <!-- Resource Information Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Resource Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table">
+                        <tr>
+                            <th style="width: 30%">Resource ID:</th>
+                            <td th:text="${resource.id}"></td>
+                        </tr>
+                        <tr>
+                            <th>Object ID:</th>
+                            <td th:text="${resource.objectId}"></td>
+                        </tr>
+                        <tr>
+                            <th>Type:</th>
+                            <td th:text="${resource.resourceType}"></td>
+                        </tr>
+                        <tr>
+                            <th>Title/Role:</th>
+                            <td th:text="${resource.title != null ? resource.title : (resource.primaryRoleName != null ? resource.primaryRoleName : '')}"></td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                <span class="badge"
+                                      th:classappend="${resource.isActive != null && resource.isActive} ? 'bg-success' : 'bg-secondary'"
+                                      th:text="${resource.isActive != null && resource.isActive} ? 'Active' : 'Inactive'"></span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <table class="table">
+                        <tr>
+                            <th style="width: 30%">Email:</th>
+                            <td th:text="${resource.emailAddress}"></td>
+                        </tr>
+                        <tr>
+                            <th>Office Phone:</th>
+                            <td th:text="${resource.officePhone}"></td>
+                        </tr>
+                        <tr>
+                            <th>Other Phone:</th>
+                            <td th:text="${resource.otherPhone}"></td>
+                        </tr>
+                        <tr>
+                            <th>Max Units:</th>
+                            <td th:text="${resource.maxUnitsPerTime != null ? resource.maxUnitsPerTime : ''}"></td>
+                        </tr>
+                        <tr>
+                            <th>Price/Unit:</th>
+                            <td th:text="${resource.pricePerUnit != null ? '$' + #numbers.formatDecimal(resource.pricePerUnit, 1, 2) : ''}"></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Resource Notes -->
+            <div class="row" th:if="${resource.resourceNotes != null && !resource.resourceNotes.isEmpty()}">
+                <div class="col-12">
+                    <h5>Notes:</h5>
+                    <p th:text="${resource.resourceNotes}"></p>
+                </div>
+            </div>
+
+            <!-- Calendar Information -->
+            <div class="row" th:if="${resource.calendarName != null && !resource.calendarName.isEmpty()}">
+                <div class="col-12">
+                    <h5>Calendar:</h5>
+                    <p th:text="${resource.calendarName}"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Project Assignments (Placeholder for future implementation) -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Project Assignments</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                Project assignment functionality will be added in a future update.
+            </div>
+        </div>
+    </div>
+
+    <!-- Resource Utilization Chart (Placeholder) -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Resource Utilization</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                Resource utilization chart will be added in a future update.
+            </div>
+            <!-- Placeholder for future chart implementation -->
+            <div id="utilizationChart" style="height: 300px; background-color: #f8f9fa; display: flex; align-items: center; justify-content: center;">
+                <i class="fas fa-chart-line fa-3x text-secondary"></i>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

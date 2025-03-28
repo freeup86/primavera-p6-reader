@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+a<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <title th:text="${project.name} + ' - Primavera P6'"></title>
@@ -18,7 +18,13 @@
                 <i class="fas fa-chart-gantt"></i> View Timeline
             </a>
             <a th:href="@{'/projects/' + ${project.objectId} + '/resources'}" class="btn btn-info ms-2">
-                <i class="fas fa-users"></i> View Resources
+                <i class="fas fa-users"></i> Project Resources
+            </a>
+            <a href="/resources" class="btn btn-primary ms-2">
+                <i class="fas fa-user-hard-hat"></i> All Resources
+            </a>
+            <a href="/dashboard" class="btn btn-dark ms-2">
+                <i class="fas fa-chart-bar"></i> Dashboard
             </a>
         </div>
         <div>
