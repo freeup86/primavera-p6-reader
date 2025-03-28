@@ -17,9 +17,10 @@
         </div>
         <h1 th:text="${project.name} + ' Resources'"></h1>
         <div>
-            <form method="post" action="/projects/cache/refresh" class="d-inline">
+            <!-- Cache Refresh Button -->
+            <form method="post" action="/cache/refresh" class="d-inline ms-2">
                 <button type="submit" class="btn btn-warning">
-                    <i class="fas fa-sync-alt"></i> Refresh
+                    <i class="fas fa-sync-alt"></i> Refresh Data
                 </button>
             </form>
         </div>

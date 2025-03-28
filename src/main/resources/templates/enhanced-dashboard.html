@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Enhanced Dashboard - Primavera P6</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .chart-container {
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .chart-title {
+            text-align: center;
+            margin-bottom: 15px;
+            font-weight: bold;
+            color: #343a40;
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Enhanced Project Dashboard</h1>
+        <div>
+            <a href="/projects" class="btn btn-secondary">
+                <i class="fas fa-list"></i> Projects List
+            </a>
+            <form method="post" action="/cache/refresh" class="d-inline ms-2">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh Data
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Projects by Status (Pie Chart) -->
+        <div class="col-md-4">
+            <div class="chart-container">
+                <h5 class="chart-title">Project Status Distribution</h5>
+                <canvas id="projectStatusChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Project Duration Distribution (Horizontal Bar Chart) -->
+        <div class="col-md-4">
+            <div class="chart-container">
+                <h5 class="chart-title">Project Duration Breakdown</h5>
+                <canvas id="projectDurationChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Activity Type Breakdown (Doughnut Chart) -->
+        <div class="col-md-4">
+            <div class="chart-container">
+                <h5 class="chart-title">Activity Type Distribution</h5>
+                <canvas id="activityTypeChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Project Progress Overview (Stacked Bar Chart) -->
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="chart-title">Project Progress Overview</h5>
+                <canvas id="projectProgressChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Resource Allocation Insights (Horizontal Bar Chart) -->
+        <div class="col-md-6">
+            <div class="chart-container">
+                <h5 class="chart-title">Resource Allocation</h5>
+                <canvas id="resourceAllocationChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        // Utility function for safe chart creation
+        function createSafeChart(canvasId, chartType, chartData, chartOptions) {
+            const ctx = document.getElementById(canvasId);
+
+            // Check if data exists and is not empty
+            if (!chartData || Object.keys(chartData).length === 0) {
+                ctx.innerHTML = '<div class="alert alert-warning text-center">No data available for this chart</div>';
+                return null;
+            }
+
+            try {
+                return new Chart(ctx, {
+                    type: chartType,
+                    data: {
+                        labels: Object.keys(chartData),
+                        datasets: [{
+                            data: Object.values(chartData),
+                            backgroundColor: chartType === 'pie' || chartType === 'doughnut'
+                                ? [
+                                    '#28a745', // Green
+                                    '#dc3545', // Red
+                                    '#ffc107', // Yellow
+                                    '#17a2b8', // Teal
+                                    '#6c757d', // Gray
+                                    '#007bff'  // Blue
+                                ]
+                                : '#007bff'
+                        }]
+                    },
+                    options: chartOptions || {}
+                });
+            } catch (error) {
+                console.error(`Error creating ${canvasId} chart:`, error);
+                ctx.innerHTML = `<div class="alert alert-danger text-center">Error rendering chart: ${error.message}</div>`;
+                return null;
+            }
+        }
+
+        // Project Status Distribution (Pie Chart)
+        const projectStatusData = /*[[${projectStatusDistribution}]]*/ {};
+        console.log('Project Status Data:', projectStatusData);
+        createSafeChart('projectStatusChart', 'pie', projectStatusData, {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                title: {
+                    display: true,
+                    text: 'Project Status Distribution'
+                }
+            }
+        });
+
+        // Project Duration Distribution (Horizontal Bar Chart)
+        const projectDurationData = /*[[${projectDurationDistribution}]]*/ {};
+        console.log('Project Duration Data:', projectDurationData);
+        createSafeChart('projectDurationChart', 'bar', projectDurationData, {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                title: {
+                    display: true,
+                    text: 'Project Duration Breakdown'
+                }
+            }
+        });
+
+        // Activity Type Distribution (Doughnut Chart)
+        const activityTypeData = /*[[${activityTypeDistribution}]]*/ {};
+        console.log('Activity Type Data:', activityTypeData);
+        createSafeChart('activityTypeChart', 'doughnut', activityTypeData, {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                title: {
+                    display: true,
+                    text: 'Activity Type Distribution'
+                }
+            }
+        });
+
+        // Project Progress Overview (Stacked Bar Chart)
+        const projectProgressData = /*[[${projectProgressData}]]*/ [];
+        console.log('Project Progress Data:', projectProgressData);
+
+        if (projectProgressData.length > 0) {
+            new Chart(document.getElementById('projectProgressChart'), {
+                type: 'bar',
+                data: {
+                    labels: projectProgressData.map(p => p.name),
+                    datasets: [
+                        {
+                            label: 'Not Started',
+                            data: projectProgressData.map(p => p.notStarted),
+                            backgroundColor: '#6c757d'
+                        },
+                        {
+                            label: 'In Progress',
+                            data: projectProgressData.map(p => p.inProgress),
+                            backgroundColor: '#007bff'
+                        },
+                        {
+                            label: 'Completed',
+                            data: projectProgressData.map(p => p.completed),
+                            backgroundColor: '#28a745'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Project Progress Overview'
+                        },
+                        legend: { position: 'bottom' }
+                    },
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true }
+                    }
+                }
+            });
+        } else {
+            document.getElementById('projectProgressChart').innerHTML =
+                '<div class="alert alert-warning text-center">No project progress data available</div>';
+        }
+
+        // Resource Allocation Insights (Horizontal Bar Chart)
+        const resourceAllocationData = /*[[${resourceAllocation}]]*/ {};
+        console.log('Resource Allocation Data:', resourceAllocationData);
+
+        createSafeChart('resourceAllocationChart', 'bar', resourceAllocationData, {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let value = context.parsed.x;
+                            let allocation = value.toFixed(2) + '%';
+                            let status = value > 80 ? 'Overallocated' :
+                                value > 60 ? 'High Allocation' :
+                                    value > 40 ? 'Moderate Allocation' :
+                                        'Low Allocation';
+                            return `Allocation: ${allocation} (${status})`;
+                        }
+                    }
+                },
+                legend: { display: false },
+                title: {
+                    display: true,
+                    text: 'Top 10 Resources by Allocation'
+                }
+            },
+            scales: {
+                x: {
+                    min: 0,
+                    max: 100,
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%'
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Allocation Percentage'
+                    }
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>

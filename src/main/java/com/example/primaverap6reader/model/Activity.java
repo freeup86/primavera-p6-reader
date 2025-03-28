@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -31,9 +32,8 @@ public class Activity {
     @JsonProperty("FinishDate")
     private Date finishDate;
 
-    // This field might not be available from the API
-    // But we'll keep it for application logic
-    private Double durationHours;
+    @JsonProperty("PlannedDuration")
+    private Double plannedDuration;
 
     @JsonProperty("Type")
     private String type;
@@ -47,18 +47,24 @@ public class Activity {
     @JsonProperty("WBSName")
     private String wbsName;
 
-    // Calculate duration if it's not provided directly
+    /**
+     * Calculate duration in hours
+     * @return Duration in hours
+     */
     public Double getDurationHours() {
-        if (durationHours != null) {
-            return durationHours;
+        // First, check if planned duration is provided
+        if (plannedDuration != null) {
+            return plannedDuration;
         }
 
-        // Calculate duration from start and finish dates if both are available
+        // If no planned duration, calculate from start and finish dates
         if (startDate != null && finishDate != null) {
-            long diffInMillies = finishDate.getTime() - startDate.getTime();
-            return (double) diffInMillies / (1000 * 60 * 60); // Convert to hours
+            long diffInMillis = finishDate.getTime() - startDate.getTime();
+            // Convert milliseconds to hours
+            return (double) TimeUnit.MILLISECONDS.toHours(diffInMillis);
         }
 
+        // Return null if no duration can be calculated
         return null;
     }
 }

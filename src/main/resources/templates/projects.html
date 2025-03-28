@@ -28,9 +28,10 @@
             <a href="/dashboard" class="btn btn-primary">
                 <i class="fas fa-chart-bar"></i> Dashboard
             </a>
+            <!-- Cache Refresh Button -->
             <form method="post" action="/cache/refresh" class="d-inline ms-2">
                 <button type="submit" class="btn btn-warning">
-                    <i class="fas fa-sync-alt"></i> Refresh Cache
+                    <i class="fas fa-sync-alt"></i> Refresh Data
                 </button>
             </form>
         </div>
@@ -121,10 +122,10 @@
                         <td th:text="${project.id}"></td>
                         <td th:text="${project.name}"></td>
                         <td>
-                                    <span class="badge"
-                                          th:classappend="${project.status == 'Active'} ? 'bg-success' :
-                                                        (${project.status == 'Inactive'} ? 'bg-secondary' : 'bg-info')"
-                                          th:text="${project.status}"></span>
+                            <span class="badge"
+                                  th:classappend="${project.status == 'Active'} ? 'bg-success' :
+                                                (${project.status == 'Inactive'} ? 'bg-secondary' : 'bg-info')"
+                                  th:text="${project.status}"></span>
                         </td>
                         <td th:text="${project.startDate != null ? #dates.format(project.startDate, 'MM/dd/yyyy') : ''}"></td>
                         <td th:text="${project.finishDate != null ? #dates.format(project.finishDate, 'MM/dd/yyyy') : ''}"></td>

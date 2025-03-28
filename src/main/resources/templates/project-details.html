@@ -1,4 +1,4 @@
-a<!DOCTYPE html>
+<!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <title th:text="${project.name} + ' - Primavera P6'"></title>
@@ -28,9 +28,10 @@ a<!DOCTYPE html>
             </a>
         </div>
         <div>
-            <form method="post" action="/projects/cache/refresh" class="d-inline">
+            <!-- Cache Refresh Button -->
+            <form method="post" action="/cache/refresh" class="d-inline ms-2">
                 <button type="submit" class="btn btn-warning">
-                    <i class="fas fa-sync-alt"></i> Refresh Cache
+                    <i class="fas fa-sync-alt"></i> Refresh Data
                 </button>
             </form>
         </div>
@@ -58,10 +59,10 @@ a<!DOCTYPE html>
                         <tr>
                             <th>Status:</th>
                             <td>
-                                    <span class="badge"
-                                          th:classappend="${project.status == 'Active'} ? 'bg-success' :
-                                                        (${project.status == 'Inactive'} ? 'bg-secondary' : 'bg-info')"
-                                          th:text="${project.status}"></span>
+                                <span class="badge"
+                                      th:classappend="${project.status == 'Active'} ? 'bg-success' :
+                                                    (${project.status == 'Inactive'} ? 'bg-secondary' : 'bg-info')"
+                                      th:text="${project.status}"></span>
                             </td>
                         </tr>
                     </table>
@@ -195,10 +196,10 @@ a<!DOCTYPE html>
                         <td th:text="${activity.name}"></td>
                         <td th:text="${activity.type}"></td>
                         <td>
-                                    <span class="badge"
-                                          th:classappend="${activity.status == 'Not Started'} ? 'bg-secondary' :
-                                                        (${activity.status == 'In Progress'} ? 'bg-primary' : 'bg-success')"
-                                          th:text="${activity.status}"></span>
+                            <span class="badge"
+                                  th:classappend="${activity.status == 'Not Started'} ? 'bg-secondary' :
+                                                (${activity.status == 'In Progress'} ? 'bg-primary' : 'bg-success')"
+                                  th:text="${activity.status}"></span>
                         </td>
                         <td th:text="${activity.wbsName}"></td>
                         <td th:text="${activity.startDate != null ? #dates.format(activity.startDate, 'MM/dd/yyyy') : ''}"></td>

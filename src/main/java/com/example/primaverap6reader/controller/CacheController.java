@@ -3,16 +3,12 @@ package com.example.primaverap6reader.controller;
 import com.example.primaverap6reader.service.PrimaveraRestService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.ResponseBody;
 
-/**
- * Controller for managing cache operations via REST API
- */
-@RestController
-@RequestMapping("/api/cache")
+@Controller
 @RequiredArgsConstructor
 @Slf4j
 public class CacheController {
@@ -20,39 +16,67 @@ public class CacheController {
     private final PrimaveraRestService primaveraService;
 
     /**
-     * Refresh all caches
-     * @return Success message
+     * Refresh cache method with multiple mappings to handle different page scenarios
+     * @param referer The page from which the refresh was initiated
+     * @return Redirect path
      */
-    @PostMapping("/refresh")
-    public ResponseEntity<String> refreshCache() {
+    @PostMapping({
+            "/cache/refresh",
+            "/projects/cache/refresh",
+            "/dashboard/cache/refresh",
+            "/refresh",
+            "/projects/refresh",
+            "/dashboard/refresh"
+    })
+    public String refreshCache(@RequestHeader(value = "Referer", required = false) String referer) {
         try {
-            log.info("API request to refresh cache");
+            log.info("Refreshing cache from web UI. Referer: {}", referer);
+
+            // Perform cache refresh
             primaveraService.refreshCache();
-            return ResponseEntity.ok("Cache refreshed successfully");
+
+            // Determine safe redirect path
+            String redirectPath = determineRedirectPath(referer);
+
+            log.info("Redirecting to: {}", redirectPath);
+            return "redirect:" + redirectPath;
         } catch (Exception e) {
-            log.error("Error refreshing cache via API: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body("Failed to refresh cache: " + e.getMessage());
+            log.error("Error refreshing cache: {}", e.getMessage(), e);
+            return "redirect:/projects";
         }
     }
 
     /**
-     * Force login and refresh the session
-     * @return Success message
+     * Safely determine redirect path
+     * @param referer Original referer URL
+     * @return Safe redirect path
      */
-    @PostMapping("/force-login")
-    public ResponseEntity<String> forceLogin() {
-        try {
-            log.info("API request to force login");
-            boolean success = primaveraService.forceLogin();
+    private String determineRedirectPath(String referer) {
+        if (referer == null || referer.isEmpty()) {
+            return "/projects";
+        }
 
-            if (success) {
-                return ResponseEntity.ok("Successfully forced login");
-            } else {
-                return ResponseEntity.badRequest().body("Force login attempt failed");
+        // List of allowed base paths
+        String[] allowedPaths = {
+                "/projects",
+                "/dashboard",
+                "/resources"
+        };
+
+        try {
+            // Remove protocol and domain
+            String path = referer.replaceFirst("^https?://[^/]+", "");
+
+            // Check if path starts with any allowed path
+            for (String allowedPath : allowedPaths) {
+                if (path.startsWith(allowedPath)) {
+                    return path;
+                }
             }
         } catch (Exception e) {
-            log.error("Error forcing login via API: {}", e.getMessage(), e);
-            return ResponseEntity.internalServerError().body("Failed to force login: " + e.getMessage());
+            log.warn("Error processing referer path: {}", referer);
         }
+
+        return "/projects";
     }
 }

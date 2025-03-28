@@ -10,12 +10,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
-/**
- * Controller for dashboard views with project statistics
- */
 @Controller
 @RequestMapping("/dashboard")
 @RequiredArgsConstructor
@@ -25,65 +22,110 @@ public class DashboardController {
     private final PrimaveraRestService primaveraService;
     private final ProjectStatisticsService statisticsService;
 
-    /**
-     * Dashboard page with project statistics and charts
-     */
     @GetMapping({"", "/"})
-    public String showDashboard(Model model) {
+    public String showEnhancedDashboard(Model model) {
         try {
-            log.info("Generating dashboard");
+            log.info("Generating enhanced dashboard");
 
-            // Get all projects
+            // Fetch all projects
             List<Project> projects = primaveraService.getAllProjects();
 
-            // Get statistics
-            Map<String, Integer> projectCountByStatus = statisticsService.getProjectCountByStatus();
-            Map<String, Integer> projectsTimelineByMonth = statisticsService.getProjectsTimelineByMonth();
-            List<Project> overdueProjects = statisticsService.getOverdueProjects();
-            List<Project> upcomingProjects = statisticsService.getUpcomingProjects();
-            Map<String, Integer> topProjects = statisticsService.getProjectsWithMostActivities(5);
-            Map<String, Double> projectDurations = statisticsService.getTotalDurationByProject();
-            Map<String, Object> summaryStats = statisticsService.getProjectsSummaryStatistics();
+            // Project Status Distribution
+            Map<String, Integer> projectStatusDistribution = calculateProjectStatusDistribution(projects);
+            model.addAttribute("projectStatusDistribution", projectStatusDistribution);
 
-            // Add data to the model
-            model.addAttribute("projects", projects);
-            model.addAttribute("projectCountByStatus", projectCountByStatus);
-            model.addAttribute("projectsTimelineByMonth", projectsTimelineByMonth);
-            model.addAttribute("overdueProjects", overdueProjects);
-            model.addAttribute("upcomingProjects", upcomingProjects);
-            model.addAttribute("topProjects", topProjects);
-            model.addAttribute("projectDurations", projectDurations);
-            model.addAttribute("summaryStats", summaryStats);
+            // Project Duration Distribution
+            Map<String, Integer> projectDurationDistribution = calculateProjectDurationDistribution(projects);
+            model.addAttribute("projectDurationDistribution", projectDurationDistribution);
 
-            return "dashboard";
+            // Activity Type Distribution
+            Map<String, Integer> activityTypeDistribution = statisticsService.getActivityCountByType();
+            model.addAttribute("activityTypeDistribution", activityTypeDistribution);
+
+            // Project Progress Overview
+            List<Map<String, Object>> projectProgressData = calculateProjectProgressData(projects);
+            model.addAttribute("projectProgressData", projectProgressData);
+
+            // Resource Allocation
+            Map<String, Double> resourceAllocation = calculateResourceAllocation();
+            model.addAttribute("resourceAllocation", resourceAllocation);
+
+            return "enhanced-dashboard";
         } catch (Exception e) {
-            log.error("Error generating dashboard: {}", e.getMessage(), e);
+            log.error("Error generating enhanced dashboard: {}", e.getMessage(), e);
             model.addAttribute("error", "Failed to generate dashboard: " + e.getMessage());
             return "error";
         }
     }
 
-    /**
-     * Activity statistics dashboard
-     */
-    @GetMapping("/activities")
-    public String showActivityDashboard(Model model) {
+    private Map<String, Integer> calculateProjectStatusDistribution(List<Project> projects) {
+        return projects.stream()
+                .collect(Collectors.groupingBy(
+                        project -> project.getStatus() != null ? project.getStatus() : "Unknown",
+                        Collectors.summingInt(p -> 1)
+                ));
+    }
+
+    private Map<String, Integer> calculateProjectDurationDistribution(List<Project> projects) {
+        return projects.stream()
+                .filter(p -> p.getStartDate() != null && p.getFinishDate() != null)
+                .map(p -> {
+                    long durationDays = (p.getFinishDate().getTime() - p.getStartDate().getTime()) / (24 * 60 * 60 * 1000);
+                    if (durationDays <= 30) return "0-1 Month";
+                    if (durationDays <= 90) return "1-3 Months";
+                    if (durationDays <= 180) return "3-6 Months";
+                    if (durationDays <= 365) return "6-12 Months";
+                    return "12+ Months";
+                })
+                .collect(Collectors.groupingBy(
+                        duration -> duration,
+                        Collectors.summingInt(p -> 1)
+                ));
+    }
+
+    private List<Map<String, Object>> calculateProjectProgressData(List<Project> projects) {
+        return projects.stream()
+                .map(project -> {
+                    Map<String, Object> projectProgress = new HashMap<>();
+                    projectProgress.put("name", project.getName());
+
+                    // Placeholder logic for progress calculation
+                    // In a real scenario, you'd calculate this based on activity statuses
+                    projectProgress.put("notStarted", 30);
+                    projectProgress.put("inProgress", 50);
+                    projectProgress.put("completed", 20);
+
+                    return projectProgress;
+                })
+                .limit(5) // Limit to top 5 projects
+                .collect(Collectors.toList());
+    }
+
+    private Map<String, Double> calculateResourceAllocation() {
         try {
-            log.info("Generating activity dashboard");
+            // Use PrimaveraRestService to get actual resource allocation
+            Map<String, Double> resourceAllocation = primaveraService.calculateResourceAllocation();
 
-            // Get activity statistics
-            Map<String, Integer> activityCountByType = statisticsService.getActivityCountByType();
-            Map<String, Integer> activityCountByStatus = statisticsService.getActivityCountByStatus();
+            log.info("Dashboard Resource Allocation Before Sorting: {}", resourceAllocation);
 
-            // Add data to the model
-            model.addAttribute("activityCountByType", activityCountByType);
-            model.addAttribute("activityCountByStatus", activityCountByStatus);
+            // Sort resources by allocation percentage in descending order
+            Map<String, Double> sortedResourceAllocation = resourceAllocation.entrySet().stream()
+                    .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                    .limit(10) // Limit to top 10 resources
+                    .collect(Collectors.toMap(
+                            Map.Entry::getKey,
+                            Map.Entry::getValue,
+                            (e1, e2) -> e1,
+                            LinkedHashMap::new
+                    ));
 
-            return "activity-dashboard";
+            log.info("Dashboard Resource Allocation After Sorting: {}", sortedResourceAllocation);
+
+            return sortedResourceAllocation;
         } catch (Exception e) {
-            log.error("Error generating activity dashboard: {}", e.getMessage(), e);
-            model.addAttribute("error", "Failed to generate activity dashboard: " + e.getMessage());
-            return "error";
+            log.error("Error in resource allocation calculation: {}", e.getMessage(), e);
+            return Collections.emptyMap();
         }
     }
+
 }

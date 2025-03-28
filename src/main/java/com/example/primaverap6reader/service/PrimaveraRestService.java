@@ -237,57 +237,58 @@ public class PrimaveraRestService {
             }
         }
 
-        // Calculate offset
-        int offset = page * size;
-
-        // Build URL with filter, sort, and pagination parameters
-        StringBuilder urlBuilder = new StringBuilder(baseUrl);
-        urlBuilder.append("/project?Fields=Name,ObjectId,Id,Status,StartDate,FinishDate,DataDate,Description");
-
-        // Add filter conditions
-        StringBuilder filterBuilder = new StringBuilder();
-
-        if (nameFilter != null && !nameFilter.isEmpty()) {
-            filterBuilder.append("Name LIKE('%").append(nameFilter).append("%')");
-        }
-
-        if (statusFilter != null && !statusFilter.isEmpty()) {
-            if (filterBuilder.length() > 0) {
-                filterBuilder.append(" AND ");
-            }
-            filterBuilder.append("Status = '").append(statusFilter).append("'");
-        }
-
-        if (filterBuilder.length() > 0) {
-            urlBuilder.append("&Filter=").append(filterBuilder);
-        }
-
-        // Add sorting
-        if (sortBy != null && !sortBy.isEmpty()) {
-            urlBuilder.append("&Sort=").append(sortBy);
-            if ("desc".equalsIgnoreCase(sortDirection)) {
-                urlBuilder.append(" DESC");
-            } else {
-                urlBuilder.append(" ASC");
-            }
-        }
-
-        // Add pagination
-        urlBuilder.append("&Offset=").append(offset).append("&Limit=").append(size);
-
-        String url = urlBuilder.toString();
-
-        HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
-
-        log.info("Fetching filtered projects from: {}", url);
-
         try {
+            // Calculate offset
+            int offset = page * size;
+
+            // Start with base project query
+            StringBuilder urlBuilder = new StringBuilder(baseUrl);
+            urlBuilder.append("/project?Fields=Name,ObjectId,Id,Status,StartDate,FinishDate,DataDate,Description");
+
+            // Initialize the base filter if needed
+            urlBuilder.append("&Filter=Id IS NOT NULL");
+
+            // Add direct equality filters
+            if (statusFilter != null && !statusFilter.isEmpty()) {
+                urlBuilder.append(" AND Status = '").append(statusFilter).append("'");
+            }
+
+            // Add sorting
+            if (sortBy != null && !sortBy.isEmpty()) {
+                urlBuilder.append("&Sort=").append(sortBy);
+                if ("desc".equalsIgnoreCase(sortDirection)) {
+                    urlBuilder.append(" DESC");
+                } else {
+                    urlBuilder.append(" ASC");
+                }
+            }
+
+            // Add pagination
+            urlBuilder.append("&Offset=").append(offset).append("&Limit=").append(size);
+
+            String url = urlBuilder.toString();
+
+            HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
+
+            log.info("Fetching filtered projects from: {}", url);
+
             ResponseEntity<Project[]> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, Project[].class);
 
             if (response.getBody() != null) {
-                log.info("Successfully retrieved {} filtered projects", response.getBody().length);
-                return Arrays.asList(response.getBody());
+                List<Project> projects = Arrays.asList(response.getBody());
+
+                // If name filter is provided, filter the results in memory
+                if (nameFilter != null && !nameFilter.isEmpty()) {
+                    String lowerCaseFilter = nameFilter.toLowerCase();
+                    projects = projects.stream()
+                            .filter(project -> project.getName() != null &&
+                                    project.getName().toLowerCase().contains(lowerCaseFilter))
+                            .collect(Collectors.toList());
+                }
+
+                log.info("Successfully retrieved {} filtered projects", projects.size());
+                return projects;
             } else {
                 log.warn("No filtered projects found or null response body");
                 return Collections.emptyList();
@@ -373,7 +374,7 @@ public class PrimaveraRestService {
     }
 
     /**
-     * Get activities for a specific project
+     * Get activities for a specific project with enhanced logging and error handling
      * @param projectObjectId Project Object ID
      * @return List of Activity objects
      */
@@ -388,28 +389,77 @@ public class PrimaveraRestService {
             }
         }
 
-        // Use the filter parameter to get activities for a specific project
-        // Remove Duration from the Fields list as it's not a valid field
+        // Include PlannedDuration in the Fields parameter
         String url = baseUrl + "/activity?Filter=ProjectObjectId IN(" + projectObjectId +
-                ")&Fields=Id,Name,ObjectId,Status,Type,WBSName,StartDate,FinishDate";
+                ")&Fields=Id,Name,ObjectId,Status,Type,WBSName,StartDate,FinishDate,PlannedDuration";
 
         HttpEntity<String> entity = new HttpEntity<>(createApiHeaders());
 
         log.info("Fetching activities for project ObjectId: {}", projectObjectId);
+        log.info("Request URL: {}", url);
 
         try {
             ResponseEntity<Activity[]> response = restTemplate.exchange(
                     url, HttpMethod.GET, entity, Activity[].class);
 
             if (response.getBody() != null) {
-                log.info("Successfully retrieved {} activities", response.getBody().length);
-                return Arrays.asList(response.getBody());
+                List<Activity> activities = Arrays.asList(response.getBody());
+
+                // Detailed logging of activities and their details
+                log.info("Successfully retrieved {} activities for project {}", activities.size(), projectObjectId);
+                for (Activity activity : activities) {
+                    log.info("Activity Details:");
+                    log.info("  Name: {}", activity.getName());
+                    log.info("  ID: {}", activity.getId());
+                    log.info("  ObjectId: {}", activity.getObjectId());
+                    log.info("  Type: {}", activity.getType());
+                    log.info("  Status: {}", activity.getStatus());
+
+                    // Explicit date logging with null checks
+                    if (activity.getStartDate() != null) {
+                        log.info("  Start Date: {} (Timestamp: {})",
+                                activity.getStartDate(),
+                                activity.getStartDate().getTime());
+                    } else {
+                        log.warn("  Start Date: NULL for activity {}", activity.getName());
+                    }
+
+                    if (activity.getFinishDate() != null) {
+                        log.info("  Finish Date: {} (Timestamp: {})",
+                                activity.getFinishDate(),
+                                activity.getFinishDate().getTime());
+                    } else {
+                        log.warn("  Finish Date: NULL for activity {}", activity.getName());
+                    }
+
+                    // Log Planned Duration
+                    if (activity.getPlannedDuration() != null) {
+                        log.info("  Planned Duration: {} hours", activity.getPlannedDuration());
+                    } else {
+                        log.warn("  Planned Duration: NULL for activity {}", activity.getName());
+                    }
+
+                    // Log calculated duration
+                    Double durationHours = activity.getDurationHours();
+                    if (durationHours != null) {
+                        log.info("  Calculated Duration: {} hours", durationHours);
+                    } else {
+                        log.warn("  Unable to calculate duration for activity {}", activity.getName());
+                    }
+                }
+
+                return activities;
             } else {
-                log.warn("No activities found or null response body");
+                log.warn("No activities found or null response body for project {}", projectObjectId);
                 return Collections.emptyList();
             }
+        } catch (HttpClientErrorException e) {
+            log.error("HTTP Error fetching activities: {}", e.getMessage());
+            log.error("Response Body: {}", e.getResponseBodyAsString());
+            throw e;
         } catch (Exception e) {
-            log.error("Error fetching activities for project {}: {}", projectObjectId, e.getMessage(), e);
+            log.error("Unexpected error fetching activities for project {}: {}",
+                    projectObjectId, e.getMessage(), e);
             throw e;
         }
     }
@@ -850,6 +900,77 @@ public class PrimaveraRestService {
         } catch (Exception e) {
             log.error("Error fetching resources: {}", e.getMessage(), e);
             throw e;
+        }
+    }
+
+    /**
+     * Calculate resource allocation across all projects
+     * @return Map of resource names to their allocation percentage
+     */
+    public Map<String, Double> calculateResourceAllocation() {
+        try {
+            log.info("Starting resource allocation calculation");
+
+            // Get all resources
+            List<Resource> resources = getAllResources();
+            log.info("Total resources found: {}", resources.size());
+
+            // Get all resource assignments
+            List<ResourceAssignment> allAssignments = new ArrayList<>();
+
+            // Fetch assignments for each project
+            List<Project> projects = getAllProjects();
+            log.info("Total projects found: {}", projects.size());
+
+            for (Project project : projects) {
+                try {
+                    List<ResourceAssignment> projectAssignments =
+                            getResourceAssignmentsForProject(project.getObjectId());
+                    log.info("Project {} - Assignments: {}", project.getName(), projectAssignments.size());
+                    allAssignments.addAll(projectAssignments);
+                } catch (Exception e) {
+                    log.error("Error fetching assignments for project {}: {}",
+                            project.getName(), e.getMessage(), e);
+                }
+            }
+
+            log.info("Total assignments across all projects: {}", allAssignments.size());
+
+            // Group assignments by resource
+            Map<String, List<ResourceAssignment>> assignmentsByResource =
+                    allAssignments.stream()
+                            .collect(Collectors.groupingBy(ResourceAssignment::getResourceName));
+
+            log.info("Unique resources with assignments: {}", assignmentsByResource.size());
+
+            // Calculate allocation for each resource
+            Map<String, Double> resourceAllocation = new HashMap<>();
+
+            for (Map.Entry<String, List<ResourceAssignment>> entry : assignmentsByResource.entrySet()) {
+                String resourceName = entry.getKey();
+                List<ResourceAssignment> assignments = entry.getValue();
+
+                // Calculate total planned units and max possible units
+                double totalPlannedUnits = assignments.stream()
+                        .mapToDouble(a -> a.getPlannedUnits() != null ? a.getPlannedUnits() : 0)
+                        .sum();
+
+                // Log details for each resource
+                log.info("Resource: {}, Total Planned Units: {}", resourceName, totalPlannedUnits);
+
+                // Estimate allocation percentage (assuming 100% is max 160 hours per month)
+                double allocationPercentage = Math.min((totalPlannedUnits / 160) * 100, 100);
+
+                resourceAllocation.put(resourceName, (double) Math.round(allocationPercentage));
+            }
+
+            log.info("Resource Allocation Calculation Complete");
+            log.info("Calculated Allocations: {}", resourceAllocation);
+
+            return resourceAllocation;
+        } catch (Exception e) {
+            log.error("Unexpected error in resource allocation calculation: {}", e.getMessage(), e);
+            return Collections.emptyMap();
         }
     }
 

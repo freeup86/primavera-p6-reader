@@ -179,7 +179,7 @@ public class ProjectController {
     /**
      * Refresh cache and redirect back
      */
-    @PostMapping("/cache/refresh")
+    @PostMapping({"/cache/refresh", "/projects/cache/refresh"})
     public String refreshCache(@RequestHeader(value = "Referer", required = false) String referer) {
         try {
             log.info("Refreshing cache from web UI");
@@ -217,7 +217,6 @@ public class ProjectController {
 
             // Get resource assignments for the activity
             List<ResourceAssignment> resourceAssignments = primaveraService.getResourceAssignmentsForActivity(activityId);
-            // Even if the list is empty, it won't cause errors
 
             model.addAttribute("project", project);
             model.addAttribute("activity", activity);

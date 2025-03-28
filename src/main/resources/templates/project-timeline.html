@@ -138,92 +138,133 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.5.0/frappe-gantt.min.js"></script>
 <script th:inline="javascript">
     document.addEventListener('DOMContentLoaded', function() {
-        // Convert activities to Gantt tasks
-        const activities = /*[[${activities}]]*/ [];
+        // Ensure activities are properly passed from Thymeleaf
+        const rawActivities = /*[[${activities}]]*/ [];
+
+        // Debug logging of raw data
+        console.log('Raw Activities - Type:', typeof rawActivities);
+        console.log('Raw Activities - Length:', rawActivities.length);
+        console.log('Raw Activities - First Item:', rawActivities[0]);
+
+        // Deep inspection of first activity
+        if (rawActivities.length > 0) {
+            const firstActivity = rawActivities[0];
+            console.log('First Activity Keys:', Object.keys(firstActivity));
+            console.log('Detailed First Activity:', JSON.stringify(firstActivity, null, 2));
+        }
+
+        // Validate and transform activities
+        const activities = rawActivities.map((activity, index) => {
+            try {
+                return {
+                    id: activity.Id || `undefined-id-${index}`,
+                    name: activity.Name || `Unnamed Activity ${index + 1}`,
+                    startDate: activity.StartDate ? new Date(activity.StartDate) : new Date(),
+                    finishDate: activity.FinishDate ? new Date(activity.FinishDate) : new Date(),
+                    status: activity.Status || 'Unknown',
+                    type: activity.Type || 'Unknown',
+                    objectId: activity.ObjectId || `undefined-objectid-${index}`
+                };
+            } catch (error) {
+                console.error(`Error processing activity #${index + 1}:`, error);
+                return {
+                    id: `error-id-${index}`,
+                    name: `Error Activity ${index + 1}`,
+                    startDate: new Date(),
+                    finishDate: new Date(),
+                    status: 'Error',
+                    type: 'Error',
+                    objectId: `error-objectid-${index}`
+                };
+            }
+        });
+
+        // Log processed activities
+        console.log('Processed Activities:', activities);
+
+        // If no activities, show an error message
+        if (activities.length === 0) {
+            document.getElementById('gantt-container').innerHTML =
+                '<div class="alert alert-warning">No activities found for this project.</div>';
+            return;
+        }
+
+        // Create Gantt tasks with robust error handling
         const tasks = activities.map(activity => {
-            // Default dates if not set
-            const startDate = activity.startDate ? new Date(activity.startDate) : new Date();
-            const endDate = activity.finishDate ? new Date(activity.finishDate) : new Date(startDate);
+            try {
+                // Ensure valid dates
+                const startDate = activity.startDate || new Date();
+                const endDate = activity.finishDate || new Date();
 
-            // Add one day to end date to make it inclusive in the gantt chart
-            endDate.setDate(endDate.getDate() + 1);
+                // Ensure end date is after start date
+                if (endDate < startDate) {
+                    endDate.setDate(startDate.getDate() + 1);
+                }
 
-            // Calculate progress based on status
-            let progress = 0;
-            if (activity.status === 'In Progress') {
-                progress = 0.5;
-            } else if (activity.status === 'Completed') {
-                progress = 1;
+                // Calculate progress
+                let progress = 0;
+                if (activity.status === 'In Progress') {
+                    progress = 0.5;
+                } else if (activity.status === 'Completed') {
+                    progress = 1;
+                }
+
+                // Determine custom class
+                let customClass = 'bar-task';
+                if (activity.type.toLowerCase().includes('milestone')) {
+                    customClass = 'bar-milestone';
+                } else if (activity.type.toLowerCase().includes('summary')) {
+                    customClass = 'bar-summary';
+                }
+
+                return {
+                    id: activity.id,
+                    name: activity.name,
+                    start: startDate,
+                    end: endDate,
+                    progress: progress,
+                    custom_class: customClass,
+                    activity: activity
+                };
+            } catch (error) {
+                console.error('Error creating Gantt task:', error);
+                return null;
             }
+        }).filter(task => task !== null); // Remove any null tasks
 
-            // Determine task type based on activity type
-            let customClass = 'bar-task';
-            if (activity.type && (activity.type.includes('Milestone') || activity.type.includes('milestone'))) {
-                customClass = 'bar-milestone';
-            } else if (activity.type && (activity.type.includes('Summary') || activity.type.includes('summary'))) {
-                customClass = 'bar-summary';
-            }
+        // Log final tasks
+        console.log('Gantt Tasks:', tasks);
 
-            return {
-                id: activity.objectId,
-                name: activity.name,
-                start: startDate,
-                end: endDate,
-                progress: progress,
-                custom_class: customClass,
-                activity: activity // Store the original activity for reference
-            };
-        });
-
-        // Initialize Gantt Chart
-        const gantt = new Gantt('#gantt', tasks, {
-            header_height: 50,
-            column_width: 30,
-            step: 24,
-            view_mode: 'Day',
-            bar_height: 20,
-            bar_corner_radius: 3,
-            arrow_curve: 5,
-            padding: 18,
-            date_format: 'MM/DD/YYYY',
-            custom_popup_html: function(task) {
-                const activity = task.activity;
-                return `
-                        <div class="details-container">
-                            <h5>${activity.name}</h5>
-                            <p><strong>ID:</strong> ${activity.id}</p>
-                            <p><strong>Type:</strong> ${activity.type || 'N/A'}</p>
-                            <p><strong>Status:</strong> ${activity.status || 'N/A'}</p>
-                            <p><strong>WBS:</strong> ${activity.wbsName || 'N/A'}</p>
-                            <p><strong>Duration:</strong> ${activity.durationHours ? activity.durationHours + ' hrs' : 'N/A'}</p>
-                            <p><strong>Start:</strong> ${activity.startDate ? new Date(activity.startDate).toLocaleDateString() : 'N/A'}</p>
-                            <p><strong>Finish:</strong> ${activity.finishDate ? new Date(activity.finishDate).toLocaleDateString() : 'N/A'}</p>
-                        </div>
-                    `;
-            }
-        });
-
-        // View mode buttons
-        document.getElementById('view-day').addEventListener('click', function() {
-            gantt.change_view_mode('Day');
-            updateActiveButton(this);
-        });
-
-        document.getElementById('view-week').addEventListener('click', function() {
-            gantt.change_view_mode('Week');
-            updateActiveButton(this);
-        });
-
-        document.getElementById('view-month').addEventListener('click', function() {
-            gantt.change_view_mode('Month');
-            updateActiveButton(this);
-        });
-
-        function updateActiveButton(activeButton) {
-            document.querySelectorAll('.btn-group .btn').forEach(btn => {
-                btn.classList.remove('active');
+        // Initialize Gantt chart with error handling
+        try {
+            const gantt = new Gantt('#gantt', tasks, {
+                header_height: 50,
+                column_width: 30,
+                step: 24,
+                view_mode: 'Day',
+                bar_height: 20,
+                bar_corner_radius: 3,
+                arrow_curve: 5,
+                padding: 18,
+                date_format: 'MM/DD/YYYY',
+                custom_popup_html: function(task) {
+                    const activity = task.activity;
+                    return `
+                    <div class="details-container">
+                        <h5>${activity.name}</h5>
+                        <p><strong>ID:</strong> ${activity.id}</p>
+                        <p><strong>Type:</strong> ${activity.type}</p>
+                        <p><strong>Status:</strong> ${activity.status}</p>
+                        <p><strong>Start:</strong> ${activity.startDate.toLocaleDateString()}</p>
+                        <p><strong>Finish:</strong> ${activity.finishDate.toLocaleDateString()}</p>
+                    </div>
+                `;
+                }
             });
-            activeButton.classList.add('active');
+        } catch (error) {
+            console.error('Error initializing Gantt chart:', error);
+            document.getElementById('gantt-container').innerHTML =
+                `<div class="alert alert-danger">Failed to render timeline: ${error.message}</div>`;
         }
     });
 </script>
