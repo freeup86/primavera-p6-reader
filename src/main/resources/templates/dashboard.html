@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Dashboard - Primavera P6</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        .stat-card {
+            border-left: 4px solid;
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card-primary {
+            border-left-color: #0d6efd;
+        }
+        .stat-card-success {
+            border-left-color: #198754;
+        }
+        .stat-card-info {
+            border-left-color: #0dcaf0;
+        }
+        .stat-card-warning {
+            border-left-color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Primavera P6 Dashboard</h1>
+        <div>
+            <a href="/projects" class="btn btn-secondary">
+                <i class="fas fa-list"></i> Projects List
+            </a>
+            <form method="post" action="/projects/cache/refresh" class="d-inline ms-2">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh Data
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Stats Summary Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card stat-card stat-card-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-0">Total Projects</h6>
+                            <h3 class="mt-2 mb-0" th:text="${projects.size()}">0</h3>
+                        </div>
+                        <div class="bg-primary bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-project-diagram text-primary fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card stat-card-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-0">Active Projects</h6>
+                            <h3 class="mt-2 mb-0" id="activeProjects">-</h3>
+                        </div>
+                        <div class="bg-success bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-check-circle text-success fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card stat-card-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-0">Overdue Projects</h6>
+                            <h3 class="mt-2 mb-0" id="overdueProjects">-</h3>
+                        </div>
+                        <div class="bg-warning bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-exclamation-triangle text-warning fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card stat-card stat-card-info">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="text-muted mb-0">Upcoming Projects</h6>
+                            <h3 class="mt-2 mb-0" id="upcomingProjects">-</h3>
+                        </div>
+                        <div class="bg-info bg-opacity-10 p-3 rounded">
+                            <i class="fas fa-calendar-alt text-info fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Projects by Status</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="statusChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Projects Timeline</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="timelineChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Projects Table -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Recent Projects</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                    <tr>
+                        <th>Project ID</th>
+                        <th>Name</th>
+                        <th>Status</th>
+                        <th>Start Date</th>
+                        <th>Finish Date</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="project, iterStat : ${projects}" th:if="${iterStat.index < 5}">
+                        <td th:text="${project.id}"></td>
+                        <td th:text="${project.name}"></td>
+                        <td>
+                                    <span class="badge"
+                                          th:classappend="${project.status == 'Active'} ? 'bg-success' :
+                                                        (${project.status == 'Inactive'} ? 'bg-secondary' : 'bg-info')"
+                                          th:text="${project.status}"></span>
+                        </td>
+                        <td th:text="${project.startDate != null ? #dates.format(project.startDate, 'MM/dd/yyyy') : ''}"></td>
+                        <td th:text="${project.finishDate != null ? #dates.format(project.finishDate, 'MM/dd/yyyy') : ''}"></td>
+                        <td>
+                            <div class="btn-group">
+                                <a th:href="@{'/projects/' + ${project.objectId}}" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-list"></i> Activities
+                                </a>
+                                <a th:href="@{'/projects/' + ${project.objectId} + '/timeline'}" class="btn btn-sm btn-success">
+                                    <i class="fas fa-chart-gantt"></i> Timeline
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        const projects = /*[[${projects}]]*/ [];
+
+        // Calculate statistics
+        let activeCount = 0;
+        let overdueCount = 0;
+        let upcomingCount = 0;
+
+        const today = new Date();
+        const statusCounts = {};
+        const timelineData = {};
+
+        projects.forEach(project => {
+            // Count by status
+            if (project.status === 'Active') {
+                activeCount++;
+            }
+
+            const status = project.status || 'Unknown';
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
+
+            // Check for overdue projects
+            if (project.finishDate) {
+                const finishDate = new Date(project.finishDate);
+                if (finishDate < today && project.status !== 'Completed') {
+                    overdueCount++;
+                }
+            }
+
+            // Check for upcoming projects
+            if (project.startDate) {
+                const startDate = new Date(project.startDate);
+                const twoWeeksFromNow = new Date();
+                twoWeeksFromNow.setDate(today.getDate() + 14);
+
+                if (startDate > today && startDate <= twoWeeksFromNow) {
+                    upcomingCount++;
+                }
+
+                // Group by month for timeline
+                const monthYear = startDate.toLocaleString('default', { month: 'short', year: 'numeric' });
+                timelineData[monthYear] = (timelineData[monthYear] || 0) + 1;
+            }
+        });
+
+        // Update counters
+        document.getElementById('activeProjects').textContent = activeCount;
+        document.getElementById('overdueProjects').textContent = overdueCount;
+        document.getElementById('upcomingProjects').textContent = upcomingCount;
+
+        // Status Chart
+        const statusLabels = Object.keys(statusCounts);
+        const statusData = Object.values(statusCounts);
+
+        new Chart(document.getElementById('statusChart').getContext('2d'), {
+            type: 'pie',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    data: statusData,
+                    backgroundColor: [
+                        '#198754', // Active - Green
+                        '#6c757d', // Inactive - Gray
+                        '#0dcaf0', // Other - Blue
+                        '#ffc107'  // Unknown - Yellow
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    }
+                }
+            }
+        });
+
+        // Timeline Chart
+        const timelineLabels = Object.keys(timelineData);
+        const timelineValues = Object.values(timelineData);
+
+        new Chart(document.getElementById('timelineChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: timelineLabels,
+                datasets: [{
+                    label: 'Projects Started',
+                    data: timelineValues,
+                    backgroundColor: '#0d6efd'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>

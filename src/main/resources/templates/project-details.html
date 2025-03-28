@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:text="${project.name} + ' - Primavera P6'"></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a href="/projects" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Projects
+            </a>
+            <a th:href="@{'/projects/' + ${project.objectId} + '/timeline'}" class="btn btn-success ms-2">
+                <i class="fas fa-chart-gantt"></i> View Timeline
+            </a>
+            <a th:href="@{'/projects/' + ${project.objectId} + '/resources'}" class="btn btn-info ms-2">
+                <i class="fas fa-users"></i> View Resources
+            </a>
+        </div>
+        <div>
+            <form method="post" action="/projects/cache/refresh" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh Cache
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h1 th:text="${project.name}"></h1>
+
+    <!-- Project Information Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Project Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table">
+                        <tr>
+                            <th style="width: 30%">Project ID:</th>
+                            <td th:text="${project.id}"></td>
+                        </tr>
+                        <tr>
+                            <th>Object ID:</th>
+                            <td th:text="${project.objectId}"></td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                    <span class="badge"
+                                          th:classappend="${project.status == 'Active'} ? 'bg-success' :
+                                                        (${project.status == 'Inactive'} ? 'bg-secondary' : 'bg-info')"
+                                          th:text="${project.status}"></span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <table class="table">
+                        <tr>
+                            <th style="width: 30%">Start Date:</th>
+                            <td th:text="${project.startDate != null ? #dates.format(project.startDate, 'MM/dd/yyyy') : 'Not set'}"></td>
+                        </tr>
+                        <tr>
+                            <th>Finish Date:</th>
+                            <td th:text="${project.finishDate != null ? #dates.format(project.finishDate, 'MM/dd/yyyy') : 'Not set'}"></td>
+                        </tr>
+                        <tr>
+                            <th>Data Date:</th>
+                            <td th:text="${project.dataDate != null ? #dates.format(project.dataDate, 'MM/dd/yyyy') : 'Not set'}"></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            <div class="row" th:if="${project.description != null and !project.description.isEmpty()}">
+                <div class="col-12">
+                    <h6>Description:</h6>
+                    <p th:text="${project.description}"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h2>Activities</h2>
+
+    <!-- Activity Filter Form -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Filters</h5>
+        </div>
+        <div class="card-body">
+            <form th:action="@{'/projects/' + ${project.objectId}}" method="get" id="filterForm">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="nameFilter" class="form-label">Activity Name</label>
+                        <input type="text" class="form-control" id="nameFilter" name="nameFilter"
+                               th:value="${nameFilter}" placeholder="Filter by name">
+                    </div>
+                    <div class="col-md-2">
+                        <label for="typeFilter" class="form-label">Type</label>
+                        <select class="form-select" id="typeFilter" name="typeFilter">
+                            <option value="">-- All Types --</option>
+                            <option value="Task Dependent" th:selected="${typeFilter == 'Task Dependent'}">Task Dependent</option>
+                            <option value="Resource Dependent" th:selected="${typeFilter == 'Resource Dependent'}">Resource Dependent</option>
+                            <option value="Start Milestone" th:selected="${typeFilter == 'Start Milestone'}">Start Milestone</option>
+                            <option value="Finish Milestone" th:selected="${typeFilter == 'Finish Milestone'}">Finish Milestone</option>
+                            <option value="WBS Summary" th:selected="${typeFilter == 'WBS Summary'}">WBS Summary</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="statusFilter" class="form-label">Status</label>
+                        <select class="form-select" id="statusFilter" name="statusFilter">
+                            <option value="">-- All Statuses --</option>
+                            <option value="Not Started" th:selected="${statusFilter == 'Not Started'}">Not Started</option>
+                            <option value="In Progress" th:selected="${statusFilter == 'In Progress'}">In Progress</option>
+                            <option value="Completed" th:selected="${statusFilter == 'Completed'}">Completed</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="sortBy" class="form-label">Sort By</label>
+                        <select class="form-select" id="sortBy" name="sortBy">
+                            <option value="Name" th:selected="${sortBy == 'Name'}">Name</option>
+                            <option value="Id" th:selected="${sortBy == 'Id'}">ID</option>
+                            <option value="Type" th:selected="${sortBy == 'Type'}">Type</option>
+                            <option value="Status" th:selected="${sortBy == 'Status'}">Status</option>
+                            <option value="StartDate" th:selected="${sortBy == 'StartDate'}">Start Date</option>
+                            <option value="FinishDate" th:selected="${sortBy == 'FinishDate'}">Finish Date</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1">
+                        <label for="sortDirection" class="form-label">Direction</label>
+                        <select class="form-select" id="sortDirection" name="sortDirection">
+                            <option value="asc" th:selected="${sortDirection == 'asc'}">Asc</option>
+                            <option value="desc" th:selected="${sortDirection == 'desc'}">Desc</option>
+                        </select>
+                    </div>
+                    <div class="col-md-1 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-filter"></i> Filter
+                        </button>
+                    </div>
+                </div>
+                <!-- Hidden fields to maintain pagination -->
+                <input type="hidden" name="page" th:value="${currentPage}" id="pageInput">
+                <input type="hidden" name="size" th:value="${pageSize}" id="sizeInput">
+            </form>
+        </div>
+    </div>
+
+    <!-- Activity Table -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+            <h5 class="mb-0">Activity List</h5>
+            <select class="form-select form-select-sm w-auto" id="pageSizeSelect">
+                <option value="10" th:selected="${pageSize == 10}">10 per page</option>
+                <option value="15" th:selected="${pageSize == 15}">15 per page</option>
+                <option value="25" th:selected="${pageSize == 25}">25 per page</option>
+                <option value="50" th:selected="${pageSize == 50}">50 per page</option>
+            </select>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info" th:if="${#lists.isEmpty(activities)}">
+                No activities found matching your criteria.
+            </div>
+
+            <div class="table-responsive" th:unless="${#lists.isEmpty(activities)}">
+                <table class="table table-striped table-hover">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Activity ID</th>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>WBS</th>
+                        <th>Start Date</th>
+                        <th>Finish Date</th>
+                        <th>Duration</th>
+                        <th>Actions</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="activity : ${activities}">
+                        <td th:text="${activity.id}"></td>
+                        <td th:text="${activity.name}"></td>
+                        <td th:text="${activity.type}"></td>
+                        <td>
+                                    <span class="badge"
+                                          th:classappend="${activity.status == 'Not Started'} ? 'bg-secondary' :
+                                                        (${activity.status == 'In Progress'} ? 'bg-primary' : 'bg-success')"
+                                          th:text="${activity.status}"></span>
+                        </td>
+                        <td th:text="${activity.wbsName}"></td>
+                        <td th:text="${activity.startDate != null ? #dates.format(activity.startDate, 'MM/dd/yyyy') : ''}"></td>
+                        <td th:text="${activity.finishDate != null ? #dates.format(activity.finishDate, 'MM/dd/yyyy') : ''}"></td>
+                        <td th:text="${activity.durationHours != null ? activity.durationHours + ' hrs' : ''}"></td>
+                        <td>
+                            <div class="btn-group">
+                                <a th:href="@{'/projects/' + ${project.objectId} + '/activities/' + ${activity.objectId}}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-users"></i> Resources
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="d-flex justify-content-between align-items-center mt-3" th:if="${totalPages > 0}">
+                <div>
+                    Showing <span th:text="${currentPage * pageSize + 1}"></span> to
+                    <span th:text="${(currentPage * pageSize + activities.size()) > totalActivities ? totalActivities : (currentPage * pageSize + activities.size())}"></span> of
+                    <span th:text="${totalActivities}"></span> activities
+                </div>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                            <a class="page-link" href="#" onclick="navigateToPage(0)">First</a>
+                        </li>
+                        <li class="page-item" th:classappend="${currentPage == 0} ? 'disabled'">
+                            <a class="page-link" href="#" th:onclick="'navigateToPage(' + ${currentPage - 1} + ')'">Previous</a>
+                        </li>
+
+                        <!-- Page numbers -->
+                        <li class="page-item" th:each="i: ${#numbers.sequence(0, totalPages > 10 ? 9 : totalPages - 1)}"
+                            th:classappend="${currentPage == i} ? 'active'">
+                            <a class="page-link" href="#" th:onclick="'navigateToPage(' + ${i} + ')'"
+                               th:text="${i + 1}"></a>
+                        </li>
+
+                        <li class="page-item" th:classappend="${currentPage >= totalPages - 1} ? 'disabled'">
+                            <a class="page-link" href="#" th:onclick="'navigateToPage(' + ${currentPage + 1} + ')'">Next</a>
+                        </li>
+                        <li class="page-item" th:classappend="${currentPage >= totalPages - 1} ? 'disabled'">
+                            <a class="page-link" href="#" th:onclick="'navigateToPage(' + ${totalPages - 1} + ')'">Last</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script>
+    function navigateToPage(page) {
+        document.getElementById('pageInput').value = page;
+        document.getElementById('filterForm').submit();
+    }
+
+    document.getElementById('pageSizeSelect').addEventListener('change', function() {
+        document.getElementById('sizeInput').value = this.value;
+        document.getElementById('pageInput').value = 0; // Reset to first page
+        document.getElementById('filterForm').submit();
+    });
+</script>
+</body>
+</html>

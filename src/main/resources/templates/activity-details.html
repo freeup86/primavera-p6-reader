@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:text="${activity.name} + ' - Primavera P6'"></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a th:href="@{'/projects/' + ${project.objectId}}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Project
+            </a>
+        </div>
+        <div>
+            <form method="post" action="/projects/cache/refresh" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h1 th:text="${activity.name}"></h1>
+
+    <!-- Activity Information Card -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Activity Information</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <table class="table">
+                        <tr>
+                            <th style="width: 30%">Activity ID:</th>
+                            <td th:text="${activity.id}"></td>
+                        </tr>
+                        <tr>
+                            <th>Type:</th>
+                            <td th:text="${activity.type}"></td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                    <span class="badge"
+                                          th:classappend="${activity.status == 'Not Started'} ? 'bg-secondary' :
+                                                        (${activity.status == 'In Progress'} ? 'bg-primary' : 'bg-success')"
+                                          th:text="${activity.status}"></span>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <table class="table">
+                        <tr>
+                            <th style="width: 30%">Start Date:</th>
+                            <td th:text="${activity.startDate != null ? #dates.format(activity.startDate, 'MM/dd/yyyy') : 'Not set'}"></td>
+                        </tr>
+                        <tr>
+                            <th>Finish Date:</th>
+                            <td th:text="${activity.finishDate != null ? #dates.format(activity.finishDate, 'MM/dd/yyyy') : 'Not set'}"></td>
+                        </tr>
+                        <tr>
+                            <th>Duration:</th>
+                            <td th:text="${activity.durationHours != null ? activity.durationHours + ' hrs' : 'Not set'}"></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resource Assignments -->
+    <h2>Resource Assignments</h2>
+
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Resources Assigned to this Activity</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info" th:if="${#lists.isEmpty(resourceAssignments)}">
+                No resources are assigned to this activity.
+            </div>
+
+            <div class="table-responsive" th:unless="${#lists.isEmpty(resourceAssignments)}">
+                <table class="table table-striped table-hover">
+                    <thead>
+                    <tr>
+                        <th>Resource</th>
+                        <th>Planned Units</th>
+                        <th>Actual Units</th>
+                        <th>Remaining Units</th>
+                        <th>Planned Cost</th>
+                        <th>Actual Cost</th>
+                        <th>Remaining Cost</th>
+                        <th>Start Date</th>
+                        <th>Finish Date</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr th:each="assignment : ${resourceAssignments}">
+                        <td th:text="${assignment.resourceName}"></td>
+                        <td th:text="${assignment.plannedUnits != null ? #numbers.formatDecimal(assignment.plannedUnits, 1, 2) : ''}"></td>
+                        <td th:text="${assignment.actualUnits != null ? #numbers.formatDecimal(assignment.actualUnits, 1, 2) : ''}"></td>
+                        <td th:text="${assignment.remainingUnits != null ? #numbers.formatDecimal(assignment.remainingUnits, 1, 2) : ''}"></td>
+                        <td th:text="${assignment.plannedCost != null ? '$' + #numbers.formatDecimal(assignment.plannedCost, 1, 2) : ''}"></td>
+                        <td th:text="${assignment.actualCost != null ? '$' + #numbers.formatDecimal(assignment.actualCost, 1, 2) : ''}"></td>
+                        <td th:text="${assignment.remainingCost != null ? '$' + #numbers.formatDecimal(assignment.remainingCost, 1, 2) : ''}"></td>
+                        <td th:text="${assignment.plannedStartDate != null ? #dates.format(assignment.plannedStartDate, 'MM/dd/yyyy') : ''}"></td>
+                        <td th:text="${assignment.plannedFinishDate != null ? #dates.format(assignment.plannedFinishDate, 'MM/dd/yyyy') : ''}"></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

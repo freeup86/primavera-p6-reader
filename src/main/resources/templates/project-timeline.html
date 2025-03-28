@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title th:text="${project.name} + ' Timeline - Primavera P6'"></title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.5.0/frappe-gantt.min.css">
+    <style>
+        .gantt-container {
+            height: 600px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+        .details-container {
+            padding: 12px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .bar-milestone .bar {
+            fill: #5f4b8b;
+        }
+        .bar-task .bar {
+            fill: #4b85bb;
+        }
+        .bar-summary .bar {
+            fill: #464646;
+        }
+    </style>
+</head>
+<body>
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a href="/" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Projects
+            </a>
+            <a th:href="@{'/projects/' + ${project.objectId}}" class="btn btn-primary ms-2">
+                <i class="fas fa-list"></i> View Activities
+            </a>
+        </div>
+        <h1 th:text="${project.name} + ' Timeline'"></h1>
+        <div>
+            <form method="post" action="/cache/refresh" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Project Summary -->
+    <div class="row mb-3">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Project Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>ID:</strong> <span th:text="${project.id}"></span></p>
+                    <p><strong>Status:</strong>
+                        <span class="badge"
+                              th:classappend="${project.status == 'Active'} ? 'bg-success' :
+                                                (${project.status == 'Inactive'} ? 'bg-secondary' : 'bg-info')"
+                              th:text="${project.status}"></span>
+                    </p>
+                    <p><strong>Date Range:</strong>
+                        <span th:text="${project.startDate != null ? #dates.format(project.startDate, 'MM/dd/yyyy') : 'N/A'}"></span>
+                        to
+                        <span th:text="${project.finishDate != null ? #dates.format(project.finishDate, 'MM/dd/yyyy') : 'N/A'}"></span>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Timeline Controls</h5>
+                    <div>
+                        <div class="btn-group" role="group">
+                            <button id="view-day" class="btn btn-sm btn-light active">Day</button>
+                            <button id="view-week" class="btn btn-sm btn-light">Week</button>
+                            <button id="view-month" class="btn btn-sm btn-light">Month</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info" th:if="${#lists.isEmpty(activities)}">
+                        No activities found for this project.
+                    </div>
+                    <div th:unless="${#lists.isEmpty(activities)}" class="mb-0">
+                        <div class="d-flex mb-2">
+                            <div class="me-4">
+                                <span class="badge bg-secondary">Not Started</span>
+                            </div>
+                            <div class="me-4">
+                                <span class="badge bg-primary">In Progress</span>
+                            </div>
+                            <div>
+                                <span class="badge bg-success">Completed</span>
+                            </div>
+                        </div>
+                        <div class="d-flex">
+                            <div class="me-4">
+                                <i class="fas fa-square text-secondary"></i> Task
+                            </div>
+                            <div class="me-4">
+                                <i class="fas fa-rhombus text-primary"></i> Milestone
+                            </div>
+                            <div>
+                                <i class="fas fa-square text-dark"></i> Summary
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline/Gantt Chart -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Activity Timeline</h5>
+        </div>
+        <div class="card-body p-0">
+            <div class="gantt-container" id="gantt-container">
+                <svg id="gantt"></svg>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/frappe-gantt/0.5.0/frappe-gantt.min.js"></script>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        // Convert activities to Gantt tasks
+        const activities = /*[[${activities}]]*/ [];
+        const tasks = activities.map(activity => {
+            // Default dates if not set
+            const startDate = activity.startDate ? new Date(activity.startDate) : new Date();
+            const endDate = activity.finishDate ? new Date(activity.finishDate) : new Date(startDate);
+
+            // Add one day to end date to make it inclusive in the gantt chart
+            endDate.setDate(endDate.getDate() + 1);
+
+            // Calculate progress based on status
+            let progress = 0;
+            if (activity.status === 'In Progress') {
+                progress = 0.5;
+            } else if (activity.status === 'Completed') {
+                progress = 1;
+            }
+
+            // Determine task type based on activity type
+            let customClass = 'bar-task';
+            if (activity.type && (activity.type.includes('Milestone') || activity.type.includes('milestone'))) {
+                customClass = 'bar-milestone';
+            } else if (activity.type && (activity.type.includes('Summary') || activity.type.includes('summary'))) {
+                customClass = 'bar-summary';
+            }
+
+            return {
+                id: activity.objectId,
+                name: activity.name,
+                start: startDate,
+                end: endDate,
+                progress: progress,
+                custom_class: customClass,
+                activity: activity // Store the original activity for reference
+            };
+        });
+
+        // Initialize Gantt Chart
+        const gantt = new Gantt('#gantt', tasks, {
+            header_height: 50,
+            column_width: 30,
+            step: 24,
+            view_mode: 'Day',
+            bar_height: 20,
+            bar_corner_radius: 3,
+            arrow_curve: 5,
+            padding: 18,
+            date_format: 'MM/DD/YYYY',
+            custom_popup_html: function(task) {
+                const activity = task.activity;
+                return `
+                        <div class="details-container">
+                            <h5>${activity.name}</h5>
+                            <p><strong>ID:</strong> ${activity.id}</p>
+                            <p><strong>Type:</strong> ${activity.type || 'N/A'}</p>
+                            <p><strong>Status:</strong> ${activity.status || 'N/A'}</p>
+                            <p><strong>WBS:</strong> ${activity.wbsName || 'N/A'}</p>
+                            <p><strong>Duration:</strong> ${activity.durationHours ? activity.durationHours + ' hrs' : 'N/A'}</p>
+                            <p><strong>Start:</strong> ${activity.startDate ? new Date(activity.startDate).toLocaleDateString() : 'N/A'}</p>
+                            <p><strong>Finish:</strong> ${activity.finishDate ? new Date(activity.finishDate).toLocaleDateString() : 'N/A'}</p>
+                        </div>
+                    `;
+            }
+        });
+
+        // View mode buttons
+        document.getElementById('view-day').addEventListener('click', function() {
+            gantt.change_view_mode('Day');
+            updateActiveButton(this);
+        });
+
+        document.getElementById('view-week').addEventListener('click', function() {
+            gantt.change_view_mode('Week');
+            updateActiveButton(this);
+        });
+
+        document.getElementById('view-month').addEventListener('click', function() {
+            gantt.change_view_mode('Month');
+            updateActiveButton(this);
+        });
+
+        function updateActiveButton(activeButton) {
+            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            activeButton.classList.add('active');
+        }
+    });
+</script>
+</body>
+</html>

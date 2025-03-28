@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Error - Primavera P6 Reader</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+</head>
+<body>
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Error</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-danger">
+                        <p th:text="${error}" class="mb-0">An error occurred.</p>
+                    </div>
+                    <div class="mt-4">
+                        <a href="/" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>Return to Home
+                        </a>
+                        <form method="post" action="/login/force" class="d-inline ms-2">
+                            <button type="submit" class="btn btn-warning">
+                                <i class="fas fa-sync-alt me-2"></i>Force Re-login
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
