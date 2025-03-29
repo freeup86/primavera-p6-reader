@@ -46,10 +46,12 @@ public class CacheConfig {
                 "topProjectsStats",
                 "projectDurationStats",
                 "projectSummaryStats",
-                // Add missing caches
                 "allResources",
                 "activityResourceAssignments",
-                "projectResourceAssignments"
+                "projectResourceAssignments",
+                "overallocatedResources",
+                "resourceUtilizationByMonth",
+                "resourceCostsByProject"
         ));
 
         return cacheManager;
