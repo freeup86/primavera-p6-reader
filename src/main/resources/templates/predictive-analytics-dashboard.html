@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Predictive Analytics - Primavera P6</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <style>
+        .card-analytics {
+            transition: transform 0.3s;
+            margin-bottom: 20px;
+        }
+        .card-analytics:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .analytics-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Predictive Analytics Dashboard</h1>
+        <div>
+            <a href="/projects" class="btn btn-primary">
+                <i class="fas fa-project-diagram"></i> Projects
+            </a>
+            <a href="/dashboard" class="btn btn-info ms-2">
+                <i class="fas fa-chart-bar"></i> Dashboard
+            </a>
+            <a href="/analytics" class="btn btn-secondary ms-2">
+                <i class="fas fa-chart-pie"></i> Analytics
+            </a>
+            <form method="post" action="/cache/refresh" class="d-inline ms-2">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh Data
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Project Selection -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Select Project for Analysis</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i> Select a project to perform predictive analytics, including schedule risk analysis,
+                completion forecasting, and budget forecasting.
+            </div>
+
+            <div class="row mt-3">
+                <div class="col-md-8">
+                    <select id="projectSelect" class="form-select form-select-lg">
+                        <option value="">-- Select a Project --</option>
+                        <option th:each="project : ${projects}"
+                                th:value="${project.objectId}"
+                                th:text="${project.name}"></option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button id="analyzeBtn" class="btn btn-primary btn-lg w-100" disabled>
+                        <i class="fas fa-chart-line"></i> Analyze Project
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analytics Options -->
+    <div class="row">
+        <!-- Schedule Risk Analysis -->
+        <div class="col-md-4">
+            <div class="card card-analytics h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-random analytics-icon"></i>
+                    <h3>Schedule Risk Analysis</h3>
+                    <p>Run Monte Carlo simulations to analyze schedule risk and determine probability distributions for project completion dates.</p>
+                    <button id="scheduleRiskBtn" class="btn btn-outline-primary" disabled>
+                        <i class="fas fa-dice"></i> Schedule Risk Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Completion Forecasting -->
+        <div class="col-md-4">
+            <div class="card card-analytics h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-calendar-check analytics-icon"></i>
+                    <h3>Completion Forecasting</h3>
+                    <p>Forecast project completion dates based on current progress, providing optimistic and pessimistic scenarios.</p>
+                    <button id="completionForecastBtn" class="btn btn-outline-primary" disabled>
+                        <i class="fas fa-calendar-alt"></i> Completion Forecast
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Budget Forecasting -->
+        <div class="col-md-4">
+            <div class="card card-analytics h-100">
+                <div class="card-body text-center">
+                    <i class="fas fa-money-bill-wave analytics-icon"></i>
+                    <h3>Budget Forecasting</h3>
+                    <p>Generate budget forecasts with confidence intervals based on current expenditure patterns and progress.</p>
+                    <button id="budgetForecastBtn" class="btn btn-outline-primary" disabled>
+                        <i class="fas fa-chart-pie"></i> Budget Forecast
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Additional Information -->
+    <div class="card mt-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">About Predictive Analytics</h5>
+        </div>
+        <div class="card-body">
+            <p>This module provides advanced predictive analytics capabilities for Primavera P6 projects:</p>
+            <ul>
+                <li><strong>Monte Carlo Simulation</strong> - Uses statistical modeling to simulate thousands of possible project outcomes, accounting for uncertainty.</li>
+                <li><strong>Schedule Performance Analysis</strong> - Evaluates current project performance to predict completion dates with confidence intervals.</li>
+                <li><strong>Budget Forecasting</strong> - Projects final costs based on current spending patterns and resource allocations.</li>
+            </ul>
+            <p>These tools help project managers make data-driven decisions by quantifying risk and providing realistic expectations for project outcomes.</p>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const projectSelect = document.getElementById('projectSelect');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const scheduleRiskBtn = document.getElementById('scheduleRiskBtn');
+        const completionForecastBtn = document.getElementById('completionForecastBtn');
+        const budgetForecastBtn = document.getElementById('budgetForecastBtn');
+
+        // Enable/disable buttons based on project selection
+        projectSelect.addEventListener('change', function() {
+            const isProjectSelected = this.value !== '';
+            analyzeBtn.disabled = !isProjectSelected;
+            scheduleRiskBtn.disabled = !isProjectSelected;
+            completionForecastBtn.disabled = !isProjectSelected;
+            budgetForecastBtn.disabled = !isProjectSelected;
+        });
+
+        // Button click handlers with updated URLs
+        analyzeBtn.addEventListener('click', function() {
+            const projectId = projectSelect.value;
+            if (projectId) {
+                window.location.href = `/predictive/schedule-risk/${projectId}`;
+            }
+        });
+
+        scheduleRiskBtn.addEventListener('click', function() {
+            const projectId = projectSelect.value;
+            if (projectId) {
+                window.location.href = `/predictive/schedule-risk/${projectId}`;
+            }
+        });
+
+        completionForecastBtn.addEventListener('click', function() {
+            const projectId = projectSelect.value;
+            if (projectId) {
+                window.location.href = `/predictive/completion-forecast/${projectId}`;
+            }
+        });
+
+        budgetForecastBtn.addEventListener('click', function() {
+            const projectId = projectSelect.value;
+            if (projectId) {
+                window.location.href = `/predictive/budget-forecast/${projectId}`;
+            }
+        });
+    });
+</script>
+</body>
+</html>

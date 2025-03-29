@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Budget Forecast - Primavera P6</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a href="/analytics" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Analytics
+            </a>
+            <a th:href="@{'/projects/' + ${project.objectId}}" class="btn btn-primary ms-2">
+                <i class="fas fa-list"></i> View Project Activities
+            </a>
+        </div>
+        <div>
+            <form method="post" action="/cache/refresh" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh Data
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h1 th:text="'Budget Forecast: ' + ${project.name}"></h1>
+
+    <!-- Performance Metrics -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Cost Performance Metrics</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Cost Performance Index (CPI)</h6>
+                            <h2 class="display-4 mb-0" th:text="${#numbers.formatDecimal(forecastResult.cpi, 1, 2)}">0.00</h2>
+                            <div class="mt-2">
+                                <span class="badge"
+                                      th:classappend="${forecastResult.cpi >= 1.0} ? 'bg-success' : 'bg-danger'"
+                                      th:text="${forecastResult.cpi >= 1.0} ? 'Under Budget' : 'Over Budget'">
+                                    Status
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Planned Budget</h6>
+                            <h2 class="mb-0" th:text="'$' + ${#numbers.formatDecimal(forecastResult.plannedCost, 1, 2)}">$0.00</h2>
+                            <small class="text-muted">(Original Budget)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Actual Cost to Date</h6>
+                            <h2 class="mb-0" th:text="'$' + ${#numbers.formatDecimal(forecastResult.actualCost, 1, 2)}">$0.00</h2>
+                            <small class="text-muted">(Spent So Far)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Remaining Budget</h6>
+                            <h2 class="mb-0" th:text="'$' + ${#numbers.formatDecimal(forecastResult.remainingCost, 1, 2)}">$0.00</h2>
+                            <small class="text-muted">(Planned Remaining)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Budget Forecast Results -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Budget Forecast Results</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-7">
+                    <canvas id="budgetForecastChart" height="300"></canvas>
+                </div>
+                <div class="col-md-5">
+                    <h5>Estimate at Completion (EAC)</h5>
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Confidence</th>
+                            <th>Amount</th>
+                            <th>Variance</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td>EAC (50%)</td>
+                            <td th:text="'$' + ${#numbers.formatDecimal(forecastResult.eac, 1, 2)}">$0.00</td>
+                            <td>
+                                    <span th:with="variance=${forecastResult.variance}"
+                                          th:text="'$' + ${#numbers.formatDecimal(variance, 1, 2)}"
+                                          th:class="${variance >= 0 ? 'text-success' : 'text-danger'}">
+                                        $0.00
+                                    </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>EAC (80%)</td>
+                            <td th:text="'$' + ${#numbers.formatDecimal(forecastResult.eac80, 1, 2)}">$0.00</td>
+                            <td>
+                                    <span th:with="variance=${forecastResult.plannedCost - forecastResult.eac80}"
+                                          th:text="'$' + ${#numbers.formatDecimal(variance, 1, 2)}"
+                                          th:class="${variance >= 0 ? 'text-success' : 'text-danger'}">
+                                        $0.00
+                                    </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>EAC (90%)</td>
+                            <td th:text="'$' + ${#numbers.formatDecimal(forecastResult.eac90, 1, 2)}">$0.00</td>
+                            <td>
+                                    <span th:with="variance=${forecastResult.plannedCost - forecastResult.eac90}"
+                                          th:text="'$' + ${#numbers.formatDecimal(variance, 1, 2)}"
+                                          th:class="${variance >= 0 ? 'text-success' : 'text-danger'}">
+                                        $0.00
+                                    </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>EAC (95%)</td>
+                            <td th:text="'$' + ${#numbers.formatDecimal(forecastResult.eac95, 1, 2)}">$0.00</td>
+                            <td>
+                                    <span th:with="variance=${forecastResult.plannedCost - forecastResult.eac95}"
+                                          th:text="'$' + ${#numbers.formatDecimal(variance, 1, 2)}"
+                                          th:class="${variance >= 0 ? 'text-success' : 'text-danger'}">
+                                        $0.00
+                                    </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Original Budget</td>
+                            <td th:text="'$' + ${#numbers.formatDecimal(forecastResult.plannedCost, 1, 2)}">$0.00</td>
+                            <td>$0.00</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Budget Components -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Budget Components</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <canvas id="budgetComponentsChart" height="300"></canvas>
+                </div>
+                <div class="col-md-6">
+                    <h5>S-Curve Analysis</h5>
+                    <canvas id="sCurveChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Forecast Methodology -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Budget Forecast Methodology</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Cost Performance Index (CPI)</h5>
+                    <p>The Cost Performance Index (CPI) measures the cost efficiency of the project:</p>
+                    <ul>
+                        <li><strong>CPI = 1.0:</strong> Project is exactly on budget</li>
+                        <li><strong>CPI > 1.0:</strong> Project is under budget (cost efficient)</li>
+                        <li><strong>CPI < 1.0:</strong> Project is over budget (cost inefficient)</li>
+                    </ul>
+                    <p>CPI is calculated by dividing the Earned Value (EV) by the Actual Cost (AC):</p>
+                    <p><code>CPI = EV / AC</code></p>
+                </div>
+                <div class="col-md-6">
+                    <h5>Estimate at Completion (EAC)</h5>
+                    <p>The Estimate at Completion (EAC) forecasts the total cost at project completion:</p>
+                    <p><code>EAC = AC + (BAC - EV) / CPI</code></p>
+                    <p>Where:</p>
+                    <ul>
+                        <li><strong>AC:</strong> Actual Cost to date</li>
+                        <li><strong>BAC:</strong> Budget at Completion (original budget)</li>
+                        <li><strong>EV:</strong> Earned Value (value of work completed)</li>
+                        <li><strong>CPI:</strong> Cost Performance Index</li>
+                    </ul>
+                    <p>The confidence intervals (80%, 90%, 95%) adjust the CPI downward to provide a more conservative forecast, accounting for potential future cost inefficiencies.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        const forecastResult = /*[[${forecastResult}]]*/ {};
+
+        // Budget Forecast Chart
+        const ctxBudgetForecast = document.getElementById('budgetForecastChart').getContext('2d');
+        new Chart(ctxBudgetForecast, {
+            type: 'bar',
+            data: {
+                labels: ['Original Budget', 'EAC (50%)', 'EAC (80%)', 'EAC (90%)', 'EAC (95%)'],
+                datasets: [{
+                    label: 'Budget/Cost',
+                    data: [
+                        forecastResult.plannedCost,
+                        forecastResult.eac,
+                        forecastResult.eac80,
+                        forecastResult.eac90,
+                        forecastResult.eac95
+                    ],
+                    backgroundColor: [
+                        'rgba(108, 117, 125, 0.7)',  // Original - Gray
+                        'rgba(0, 123, 255, 0.7)',    // EAC (50%) - Blue
+                        'rgba(255, 193, 7, 0.7)',    // EAC (80%) - Yellow
+                        'rgba(255, 153, 0, 0.7)',    // EAC (90%) - Orange
+                        'rgba(220, 53, 69, 0.7)'     // EAC (95%) - Red
+                    ],
+                    borderColor: [
+                        'rgba(108, 117, 125, 1)',
+                        'rgba(0, 123, 255, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(255, 153, 0, 1)',
+                        'rgba(220, 53, 69, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Amount ($)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Budget Forecast'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'Amount:  + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Budget Forecast at Different Confidence Levels'
+                    }
+                }
+            }
+        });
+
+        // Budget Components Chart
+        const ctxBudgetComponents = document.getElementById('budgetComponentsChart').getContext('2d');
+        new Chart(ctxBudgetComponents, {
+            type: 'doughnut',
+            data: {
+                labels: ['Actual Cost to Date', 'Remaining Cost (Adjusted)'],
+                datasets: [{
+                    data: [
+                        forecastResult.actualCost,
+                        forecastResult.eac - forecastResult.actualCost
+                    ],
+                    backgroundColor: [
+                        'rgba(220, 53, 69, 0.7)',    // Actual - Red
+                        'rgba(40, 167, 69, 0.7)'     // Remaining - Green
+                    ],
+                    borderColor: [
+                        'rgba(220, 53, 69, 1)',
+                        'rgba(40, 167, 69, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Budget Components'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.parsed;
+                                const total = context.dataset.data.reduce((acc, data) => acc + data, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return `${context.label}: ${value.toFixed(2)} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // S-Curve Chart
+        const ctxSCurve = document.getElementById('sCurveChart').getContext('2d');
+
+        // Generate S-curve data points
+        const sCurveData = generateSCurve(
+            forecastResult.plannedCost,
+            forecastResult.actualCost,
+            forecastResult.eac
+        );
+
+        new Chart(ctxSCurve, {
+            type: 'line',
+            data: {
+                labels: sCurveData.labels,
+                datasets: [
+                    {
+                        label: 'Planned Value',
+                        data: sCurveData.planned,
+                        borderColor: 'rgba(0, 123, 255, 1)',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 0
+                    },
+                    {
+                        label: 'Actual Cost',
+                        data: sCurveData.actual,
+                        borderColor: 'rgba(220, 53, 69, 1)',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        pointRadius: 3
+                    },
+                    {
+                        label: 'Forecast',
+                        data: sCurveData.forecast,
+                        borderColor: 'rgba(255, 193, 7, 1)',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2,
+                        borderDash: [5, 5],
+                        pointRadius: 0
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Cumulative Cost ($)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Project Timeline (%)'
+                        }
+                    }
+                },
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Cost S-Curve Analysis'
+                    }
+                }
+            }
+        });
+
+        /**
+         * Generate S-curve data for planned, actual, and forecast values
+         */
+        function generateSCurve(plannedCost, actualCost, forecastCost) {
+            const labels = [];
+            const planned = [];
+            const actual = [];
+            const forecast = [];
+
+            // Assuming we're 60% through the project (for illustration)
+            const progressPercent = 60;
+
+            // Generate data points for each 10% of the project
+            for (let i = 0; i <= 100; i += 10) {
+                labels.push(i + '%');
+
+                // Planned value follows an S-curve
+                let plannedValue;
+                if (i < 20) {
+                    // Slow start (first 20%)
+                    plannedValue = plannedCost * (i / 100) * 0.5;
+                } else if (i > 80) {
+                    // Slow finish (last 20%)
+                    plannedValue = plannedCost * (0.9 + (i - 80) / 100);
+                } else {
+                    // Middle 60% progresses more rapidly
+                    plannedValue = plannedCost * (0.1 + (i - 20) / 100 * 0.8);
+                }
+                planned.push(plannedValue);
+
+                // Actual cost (up to current progress)
+                if (i <= progressPercent) {
+                    // Adjust based on CPI
+                    actual.push(plannedValue * (plannedCost / forecastCost));
+                } else {
+                    actual.push(null);
+                }
+
+                // Forecast (from current progress onward)
+                if (i < progressPercent) {
+                    forecast.push(null);
+                } else if (i === progressPercent) {
+                    forecast.push(actualCost);
+                } else {
+                    // Calculate remaining based on EAC
+                    const remainingPercent = (i - progressPercent) / (100 - progressPercent);
+                    forecast.push(actualCost + (forecastCost - actualCost) * remainingPercent);
+                }
+            }
+
+            return { labels, planned, actual, forecast };
+        }
+    });
+</script>
+</body>
+</html>

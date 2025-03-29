@@ -28,8 +28,11 @@
             <a href="/dashboard" class="btn btn-primary">
                 <i class="fas fa-chart-bar"></i> Dashboard
             </a>
-            <a href="/analytics" class="btn btn-info ms-2">
-                <i class="fas fa-chart-bar"></i> Advanced Analytics
+            <a href="/analytics" class="btn btn-secondary ms-2">
+                <i class="fas fa-chart-pie"></i> Analytics
+            </a>
+            <a href="/predictive" class="btn btn-info ms-2">
+                <i class="fas fa-chart-line"></i> Predictive
             </a>
             <!-- Cache Refresh Button -->
             <form method="post" action="/cache/refresh" class="d-inline ms-2">
@@ -140,6 +143,22 @@
                                 <a th:href="@{'/projects/' + ${project.objectId} + '/timeline'}" class="btn btn-sm btn-success">
                                     <i class="fas fa-chart-gantt"></i> Timeline
                                 </a>
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-sm btn-info dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                        <i class="fas fa-chart-line"></i> Predictive
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" th:href="@{'/predictive/schedule-risk/' + ${project.objectId}}">
+                                            <i class="fas fa-random"></i> Schedule Risk Analysis
+                                        </a></li>
+                                        <li><a class="dropdown-item" th:href="@{'/predictive/completion-forecast/' + ${project.objectId}}">
+                                            <i class="fas fa-calendar-check"></i> Completion Forecast
+                                        </a></li>
+                                        <li><a class="dropdown-item" th:href="@{'/predictive/budget-forecast/' + ${project.objectId}}">
+                                            <i class="fas fa-money-bill-wave"></i> Budget Forecast
+                                        </a></li>
+                                    </ul>
+                                </div>
                             </div>
                         </td>
                     </tr>

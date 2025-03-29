@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Completion Forecast - Primavera P6</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a href="/analytics" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Analytics
+            </a>
+            <a th:href="@{'/projects/' + ${project.objectId}}" class="btn btn-primary ms-2">
+                <i class="fas fa-list"></i> View Project Activities
+            </a>
+        </div>
+        <div>
+            <form method="post" action="/cache/refresh" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh Data
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h1 th:text="'Completion Forecast: ' + ${project.name}"></h1>
+
+    <!-- Performance Metrics -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Performance Metrics</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Schedule Performance Index (SPI)</h6>
+                            <h2 class="display-4 mb-0" th:text="${#numbers.formatDecimal(forecastResult.spi, 1, 2)}">0.00</h2>
+                            <div class="mt-2">
+                                <span class="badge"
+                                      th:classappend="${forecastResult.spi >= 1.0} ? 'bg-success' : 'bg-danger'"
+                                      th:text="${forecastResult.spi >= 1.0} ? 'On Schedule' : 'Behind Schedule'">
+                                    Status
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Data Date</h6>
+                            <h2 class="mb-0" th:text="${#dates.format(forecastResult.dataDate, 'MM/dd/yyyy')}">MM/DD/YYYY</h2>
+                            <small class="text-muted">(Status Date)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Baseline Finish</h6>
+                            <h2 class="mb-0" th:text="${project.finishDate != null ? #dates.format(project.finishDate, 'MM/dd/yyyy') : 'Not Set'}">MM/DD/YYYY</h2>
+                            <small class="text-muted">(Original Plan)</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-light h-100">
+                        <div class="card-body text-center">
+                            <h6 class="card-title">Remaining Duration</h6>
+                            <h2 class="display-4 mb-0" th:text="${#numbers.formatInteger(forecastResult.remainingDuration, 1)}">0</h2>
+                            <small class="text-muted">Hours</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Completion Forecast Results -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Completion Forecast Results</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-8">
+                    <canvas id="completionChart" height="250"></canvas>
+                </div>
+                <div class="col-md-4">
+                    <h5>Forecast Completion Dates</h5>
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Scenario</th>
+                            <th>Date</th>
+                            <th>Variance</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr>
+                            <td>
+                                <span class="badge bg-success">Optimistic</span>
+                            </td>
+                            <td th:text="${#dates.format(forecastResult.optimisticForecast, 'MM/dd/yyyy')}">MM/DD/YYYY</td>
+                            <td th:if="${project.finishDate != null}">
+                                    <span th:with="diff=${(forecastResult.optimisticForecast.time - project.finishDate.time) / (1000 * 60 * 60 * 24)}"
+                                          th:text="${diff > 0 ? '+' : ''} + ${diff} + ' days'"
+                                          th:class="${diff > 0 ? 'text-danger' : 'text-success'}"></span>
+                            </td>
+                            <td th:unless="${project.finishDate != null}">N/A</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="badge bg-primary">Most Likely</span>
+                            </td>
+                            <td th:text="${#dates.format(forecastResult.forecastCompletionDate, 'MM/dd/yyyy')}">MM/DD/YYYY</td>
+                            <td th:if="${project.finishDate != null}">
+                                    <span th:with="diff=${(forecastResult.forecastCompletionDate.time - project.finishDate.time) / (1000 * 60 * 60 * 24)}"
+                                          th:text="${diff > 0 ? '+' : ''} + ${diff} + ' days'"
+                                          th:class="${diff > 0 ? 'text-danger' : 'text-success'}"></span>
+                            </td>
+                            <td th:unless="${project.finishDate != null}">N/A</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="badge bg-danger">Pessimistic</span>
+                            </td>
+                            <td th:text="${#dates.format(forecastResult.pessimisticForecast, 'MM/dd/yyyy')}">MM/DD/YYYY</td>
+                            <td th:if="${project.finishDate != null}">
+                                    <span th:with="diff=${(forecastResult.pessimisticForecast.time - project.finishDate.time) / (1000 * 60 * 60 * 24)}"
+                                          th:text="${diff > 0 ? '+' : ''} + ${diff} + ' days'"
+                                          th:class="${diff > 0 ? 'text-danger' : 'text-success'}"></span>
+                            </td>
+                            <td th:unless="${project.finishDate != null}">N/A</td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <span class="badge bg-secondary">Baseline</span>
+                            </td>
+                            <td th:text="${project.finishDate != null ? #dates.format(project.finishDate, 'MM/dd/yyyy') : 'Not Set'}">MM/DD/YYYY</td>
+                            <td>0 days</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPI History -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Schedule Performance Trend</h5>
+        </div>
+        <div class="card-body">
+            <div class="alert alert-info">
+                <i class="fas fa-info-circle"></i>
+                This section would display historical SPI trends over time. This feature requires historical data collection which will be implemented in a future update.
+            </div>
+            <canvas id="spiTrendChart" height="250"></canvas>
+        </div>
+    </div>
+
+    <!-- Forecast Methodology -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Forecast Methodology</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Schedule Performance Index (SPI)</h5>
+                    <p>The Schedule Performance Index (SPI) measures the efficiency at which the project is progressing compared to the planned schedule:</p>
+                    <ul>
+                        <li><strong>SPI = 1.0:</strong> Project is exactly on schedule</li>
+                        <li><strong>SPI > 1.0:</strong> Project is ahead of schedule</li>
+                        <li><strong>SPI < 1.0:</strong> Project is behind schedule</li>
+                    </ul>
+                    <p>SPI is calculated by dividing the Earned Value (EV) by the Planned Value (PV):</p>
+                    <p><code>SPI = EV / PV</code></p>
+                </div>
+                <div class="col-md-6">
+                    <h5>Completion Date Forecasting</h5>
+                    <p>The forecast completion date is calculated using the following formula:</p>
+                    <p><code>Forecast Completion = Current Date + (Remaining Duration / SPI)</code></p>
+                    <p>This means:</p>
+                    <ul>
+                        <li>If SPI > 1 (ahead of schedule), the remaining work is forecast to be completed faster than planned</li>
+                        <li>If SPI < 1 (behind schedule), the remaining work is forecast to take longer than planned</li>
+                    </ul>
+                    <p>The optimistic and pessimistic scenarios adjust the SPI by ±20% to provide a forecast range.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        const forecastResult = /*[[${forecastResult}]]*/ {};
+        const project = /*[[${project}]]*/ {};
+
+        // Set up forecast dates for the chart
+        const dataDate = new Date(forecastResult.dataDate);
+        const baselineDate = project.finishDate ? new Date(project.finishDate) : null;
+        const optimisticDate = new Date(forecastResult.optimisticForecast);
+        const mostLikelyDate = new Date(forecastResult.forecastCompletionDate);
+        const pessimisticDate = new Date(forecastResult.pessimisticForecast);
+
+        // Create the completion chart
+        const ctxCompletion = document.getElementById('completionChart').getContext('2d');
+        new Chart(ctxCompletion, {
+            type: 'bar',
+            data: {
+                labels: ['Baseline', 'Optimistic', 'Most Likely', 'Pessimistic'],
+                datasets: [{
+                    label: 'Completion Date',
+                    data: [
+                        baselineDate ? baselineDate.getTime() : null,
+                        optimisticDate.getTime(),
+                        mostLikelyDate.getTime(),
+                        pessimisticDate.getTime()
+                    ],
+                    backgroundColor: [
+                        'rgba(108, 117, 125, 0.7)',  // Baseline - Gray
+                        'rgba(40, 167, 69, 0.7)',    // Optimistic - Green
+                        'rgba(0, 123, 255, 0.7)',    // Most Likely - Blue
+                        'rgba(220, 53, 69, 0.7)'     // Pessimistic - Red
+                    ],
+                    borderColor: [
+                        'rgba(108, 117, 125, 1)',
+                        'rgba(40, 167, 69, 1)',
+                        'rgba(0, 123, 255, 1)',
+                        'rgba(220, 53, 69, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        type: 'time',
+                        time: {
+                            unit: 'day',
+                            displayFormats: {
+                                day: 'MMM dd, yyyy'
+                            }
+                        },
+                        title: {
+                            display: true,
+                            text: 'Completion Date'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Scenario'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = new Date(context.parsed.y);
+                                return 'Completion Date: ' + value.toLocaleDateString();
+                            }
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Project Completion Forecast'
+                    }
+                }
+            }
+        });
+
+        // Create the SPI trend chart (placeholder with dummy data)
+        const ctxSPITrend = document.getElementById('spiTrendChart').getContext('2d');
+
+        // Generate some dummy data for illustration
+        const labels = [];
+        const spiValues = [];
+
+        // Generate dates and SPI values for the last 10 status updates
+        const dummyDate = new Date(dataDate);
+        dummyDate.setDate(dummyDate.getDate() - 70); // Start 10 weeks before data date
+
+        for (let i = 0; i < 10; i++) {
+            dummyDate.setDate(dummyDate.getDate() + 7); // Weekly updates
+            labels.push(dummyDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+
+            // Generate SPI values trending toward the current SPI
+            let spiTrend;
+            if (forecastResult.spi < 1) {
+                // Trending down from 1.0 to current SPI
+                spiTrend = 1.0 - (0.1 * i * (1.0 - forecastResult.spi) / 10);
+            } else {
+                // Trending up from 1.0 to current SPI
+                spiTrend = 1.0 + (0.1 * i * (forecastResult.spi - 1.0) / 10);
+            }
+            spiValues.push(spiTrend);
+        }
+
+        new Chart(ctxSPITrend, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'SPI Trend',
+                    data: spiValues,
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    borderColor: 'rgba(0, 123, 255, 1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4
+                }, {
+                    label: 'On Schedule (SPI = 1.0)',
+                    data: Array(labels.length).fill(1.0),
+                    backgroundColor: 'transparent',
+                    borderColor: 'rgba(40, 167, 69, 0.7)',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    fill: false,
+                    pointRadius: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Schedule Performance Index (SPI)'
+                        },
+                        suggestedMin: Math.min(0.7, forecastResult.spi * 0.9),
+                        suggestedMax: Math.max(1.3, forecastResult.spi * 1.1)
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Status Date'
+                        }
+                    }
+                },
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return 'SPI: ' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'SPI Trend (Simulated Data - For Illustration Only)'
+                    }
+                }
+            }
+        });
+    });
+</script>
+</body>
+</html>

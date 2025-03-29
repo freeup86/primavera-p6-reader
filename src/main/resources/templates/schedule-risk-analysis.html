@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Schedule Risk Analysis - Primavera P6</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <a href="/predictive" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Predictive
+            </a>
+            <a th:href="@{'/projects/' + ${project.objectId}}" class="btn btn-primary ms-2">
+                <i class="fas fa-list"></i> View Project Activities
+            </a>
+        </div>
+        <div>
+            <form method="post" action="/cache/refresh" class="d-inline">
+                <button type="submit" class="btn btn-warning">
+                    <i class="fas fa-sync-alt"></i> Refresh Data
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h1 th:text="'Schedule Risk Analysis: ' + ${project.name}"></h1>
+
+    <!-- Simulation Controls -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">Monte Carlo Simulation Controls</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <label for="iterationsRange" class="form-label">Number of Iterations: <span id="iterationsValue" th:text="${iterations}"></span></label>
+                    <input type="range" class="form-range" id="iterationsRange" min="100" max="10000" step="100" th:value="${iterations}">
+                </div>
+                <div class="col-md-3">
+                    <label for="distributionType" class="form-label">Distribution Type</label>
+                    <select id="distributionType" class="form-select">
+                        <option value="triangular" selected>Triangular</option>
+                        <option value="normal">Normal</option>
+                    </select>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button id="runSimulationBtn" class="btn btn-primary w-100">
+                        <i class="fas fa-play"></i> Run Simulation
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="progress" id="simulationProgress" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulation Results Summary -->
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">Simulation Results Summary</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h5>Project Completion Date Forecast</h5>
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Confidence Level</th>
+                            <th>Completion Date</th>
+                            <th>Days from Baseline</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="level : ${confidenceLevels}">
+                            <td th:text="${level} + '%'"></td>
+                            <td th:text="${simulationResult.dateConfidenceResults.containsKey(level)} ?
+                                    ${#dates.format(simulationResult.dateConfidenceResults.get(level), 'MM/dd/yyyy')} : 'N/A'"></td>
+                            <td th:if="${simulationResult.dateConfidenceResults.containsKey(level) && project.finishDate != null}">
+                                    <span th:with="diff=${(simulationResult.dateConfidenceResults.get(level).time - project.finishDate.time) / (1000 * 60 * 60 * 24)}"
+                                          th:text="${diff > 0 ? '+' : ''} + ${diff} + ' days'"
+                                          th:class="${diff > 0 ? 'text-danger' : 'text-success'}"></span>
+                            </td>
+                            <td th:unless="${simulationResult.dateConfidenceResults.containsKey(level) && project.finishDate != null}">
+                                N/A
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Mean</td>
+                            <td th:text="${#dates.format(simulationResult.meanCompletionDate, 'MM/dd/yyyy')}"></td>
+                            <td th:if="${project.finishDate != null}">
+                                    <span th:with="diff=${(simulationResult.meanCompletionDate.time - project.finishDate.time) / (1000 * 60 * 60 * 24)}"
+                                          th:text="${diff > 0 ? '+' : ''} + ${diff} + ' days'"
+                                          th:class="${diff > 0 ? 'text-danger' : 'text-success'}"></span>
+                            </td>
+                            <td th:unless="${project.finishDate != null}">
+                                N/A
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Original Baseline</td>
+                            <td th:text="${project.finishDate != null ? #dates.format(project.finishDate, 'MM/dd/yyyy') : 'Not set'}"></td>
+                            <td>0 days</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h5>Project Budget Forecast</h5>
+                    <table class="table table-bordered">
+                        <thead class="table-light">
+                        <tr>
+                            <th>Confidence Level</th>
+                            <th>Total Cost</th>
+                            <th>Variance</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="level : ${confidenceLevels}">
+                            <td th:text="${level} + '%'"></td>
+                            <td th:text="${simulationResult.costConfidenceResults.containsKey(level)} ?
+                                    '$' + ${#numbers.formatDecimal(simulationResult.costConfidenceResults.get(level), 1, 2)} : 'N/A'"></td>
+                            <td>
+                                <span>Placeholder</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Mean</td>
+                            <td th:text="'$' + ${#numbers.formatDecimal(simulationResult.meanTotalCost, 1, 2)}"></td>
+                            <td>
+                                <span>Placeholder</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>Original Budget</td>
+                            <td>Placeholder</td>
+                            <td>$0.00</td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulation Charts -->
+    <div class="row">
+        <!-- Completion Date Distribution -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Completion Date Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="completionDateChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cost Distribution -->
+        <div class="col-md-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Project Cost Distribution</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="costDistributionChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Simulation Details -->
+    <div class="card mb-4">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Simulation Details</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Simulation Parameters</h5>
+                            <ul class="list-group list-group-flush">
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Iterations:</span>
+                                    <strong th:text="${simulationResult.iterations}"></strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Distribution:</span>
+                                    <strong>Triangular</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Activity Optimistic:</span>
+                                    <strong>-20%</strong>
+                                </li>
+                                <li class="list-group-item d-flex justify-content-between">
+                                    <span>Activity Pessimistic:</span>
+                                    <strong>+30%</strong>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-8">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Interpretation</h5>
+                            <p><strong>What is Monte Carlo simulation?</strong></p>
+                            <p>Monte Carlo simulation is a computerized mathematical technique that allows for accounting of risk and uncertainty in forecasting models. It runs many simulations using random variables to estimate the probability of different outcomes.</p>
+                            <p><strong>How to interpret the results?</strong></p>
+                            <p>The confidence levels show the probability of completing the project by a specific date or within a specific budget. For example, an 80% confidence level means there is an 80% chance the project will be completed by the date shown.</p>
+                            <p>Higher confidence levels provide more conservative estimates, reducing the risk of overruns but potentially allocating more time or budget than needed for the project.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.2.3/js/bootstrap.bundle.min.js"></script>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', function() {
+        const projectId = /*[[${project.objectId}]]*/ '';
+        const simulationResult = /*[[${simulationResult}]]*/ {};
+
+        // Range slider for iterations
+        const iterationsRange = document.getElementById('iterationsRange');
+        const iterationsValue = document.getElementById('iterationsValue');
+
+        iterationsRange.addEventListener('input', function() {
+            iterationsValue.textContent = this.value;
+        });
+
+        // Run simulation button
+        const runSimulationBtn = document.getElementById('runSimulationBtn');
+        const simulationProgress = document.getElementById('simulationProgress');
+        const progressBar = simulationProgress.querySelector('.progress-bar');
+
+        runSimulationBtn.addEventListener('click', function() {
+            // Show progress bar
+            simulationProgress.style.display = 'block';
+            progressBar.style.width = '0%';
+            runSimulationBtn.disabled = true;
+
+            // Simulate progress (this would be replaced with actual AJAX call)
+            let progress = 0;
+            const interval = setInterval(function() {
+                progress += 5;
+                progressBar.style.width = progress + '%';
+                progressBar.setAttribute('aria-valuenow', progress);
+
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    // Make AJAX call to run simulation
+                    runMonteCarlo();
+                }
+            }, 100);
+        });
+
+        function runMonteCarlo() {
+            const iterations = iterationsRange.value;
+            const distributionType = document.getElementById('distributionType').value;
+
+            // AJAX call to run simulation with updated URL
+            fetch(`/predictive/simulate/${projectId}?iterations=${iterations}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Update charts and tables with new data
+                    updateCharts(data);
+                    updateTables(data);
+
+                    // Hide progress bar
+                    simulationProgress.style.display = 'none';
+                    runSimulationBtn.disabled = false;
+                })
+                .catch(error => {
+                    console.error('Error running simulation:', error);
+                    simulationProgress.style.display = 'none';
+                    runSimulationBtn.disabled = false;
+                    alert('Error running simulation. Please try again.');
+                });
+        }
+
+        // Initialize the charts
+        initializeCharts(simulationResult);
+
+        function initializeCharts(data) {
+            // Process dates for chart
+            const dates = processDateHistogram(data.simulatedCompletionDates);
+            const costs = processCostHistogram(data.simulatedTotalCosts);
+
+            // Create Completion Date Chart
+            const ctxDate = document.getElementById('completionDateChart').getContext('2d');
+            window.completionDateChart = new Chart(ctxDate, {
+                type: 'bar',
+                data: {
+                    labels: dates.labels,
+                    datasets: [{
+                        label: 'Frequency',
+                        data: dates.values,
+                        backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Completion Date'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Project Completion Date Distribution'
+                        }
+                    }
+                }
+            });
+
+            // Create Cost Distribution Chart
+            const ctxCost = document.getElementById('costDistributionChart').getContext('2d');
+            window.costDistributionChart = new Chart(ctxCost, {
+                type: 'bar',
+                data: {
+                    labels: costs.labels,
+                    datasets: [{
+                        label: 'Frequency',
+                        data: costs.values,
+                        backgroundColor: 'rgba(75, 192, 192, 0.5)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Frequency'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Total Cost ($)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Project Cost Distribution'
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateCharts(data) {
+            // Process dates for chart
+            const dates = processDateHistogram(data.simulatedCompletionDates);
+            const costs = processCostHistogram(data.simulatedTotalCosts);
+
+            // Update Completion Date Chart
+            window.completionDateChart.data.labels = dates.labels;
+            window.completionDateChart.data.datasets[0].data = dates.values;
+            window.completionDateChart.update();
+
+            // Update Cost Distribution Chart
+            window.costDistributionChart.data.labels = costs.labels;
+            window.costDistributionChart.data.datasets[0].data = costs.values;
+            window.costDistributionChart.update();
+        }
+
+        function updateTables(data) {
+            // Todo: update tables with new simulation data
+            console.log('Updating tables with new data:', data);
+
+            // This would require updating the DOM elements directly
+            // or reloading the page with the new data
+        }
+
+        function processDateHistogram(dates) {
+            if (!dates || dates.length === 0) {
+                return { labels: [], values: [] };
+            }
+
+            // Convert date strings to Date objects if needed
+            const dateObjects = dates.map(d => typeof d === 'string' ? new Date(d) : d);
+
+            // Sort dates
+            dateObjects.sort((a, b) => a - b);
+
+            // Get min and max dates
+            const minDate = dateObjects[0];
+            const maxDate = dateObjects[dateObjects.length - 1];
+
+            // Calculate date range in days
+            const rangeDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24));
+
+            // Determine bin size (aim for 10-20 bins)
+            const binSizeDays = Math.max(1, Math.ceil(rangeDays / 15));
+
+            // Create bins
+            const bins = {};
+            const labels = [];
+
+            // Initialize bins with formatted dates
+            for (let i = 0; i <= rangeDays; i += binSizeDays) {
+                const binDate = new Date(minDate);
+                binDate.setDate(binDate.getDate() + i);
+                const formattedDate = binDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                bins[formattedDate] = 0;
+                labels.push(formattedDate);
+            }
+
+            // Count dates in each bin
+            dateObjects.forEach(date => {
+                const daysDiff = Math.floor((date - minDate) / (1000 * 60 * 60 * 24));
+                const binIndex = Math.floor(daysDiff / binSizeDays);
+                const formattedDate = labels[Math.min(binIndex, labels.length - 1)];
+                bins[formattedDate] = (bins[formattedDate] || 0) + 1;
+            });
+
+            // Convert to arrays for Chart.js
+            const values = labels.map(label => bins[label] || 0);
+
+            return { labels, values };
+        }
+
+        function processCostHistogram(costs) {
+            if (!costs || costs.length === 0) {
+                return { labels: [], values: [] };
+            }
+
+            // Sort costs
+            costs.sort((a, b) => a - b);
+
+            // Get min and max costs
+            const minCost = costs[0];
+            const maxCost = costs[costs.length - 1];
+
+            // Calculate cost range
+            const range = maxCost - minCost;
+
+            // Determine bin size (aim for 10-15 bins)
+            const binSize = Math.ceil(range / 12);
+
+            // Create bins
+            const bins = {};
+            const labels = [];
+
+            // Initialize bins with formatted costs
+            for (let i = 0; i <= range; i += binSize) {
+                const binCost = minCost + i;
+                const formattedCost = '$' + Math.floor(binCost).toLocaleString();
+                bins[formattedCost] = 0;
+                labels.push(formattedCost);
+            }
+
+            // Count costs in each bin
+            costs.forEach(cost => {
+                const binIndex = Math.floor((cost - minCost) / binSize);
+                const formattedCost = labels[Math.min(binIndex, labels.length - 1)];
+                bins[formattedCost] = (bins[formattedCost] || 0) + 1;
+            });
+
+            // Convert to arrays for Chart.js
+            const values = labels.map(label => bins[label] || 0);
+
+            return { labels, values };
+        }
+    });
+</script>
+</body>
+</html>
